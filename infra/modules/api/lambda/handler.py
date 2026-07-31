@@ -1,0 +1,198 @@
+"""Write path for The Daily Compile.
+
+Three routes, reachable only through CloudFront (the Function URL is IAM-authed and
+signed by the distribution's OAC):
+
+    GET  /api/health    liveness
+    POST /api/feedback  one keep/spike event -> data/feedback/<date>/<storyId>-<ms>.json
+    POST /api/config    the topics/sources config -> data/config/config.json
+
+Everything is validated against the contracts in CLAUDE.md before it touches S3.
+The bucket is versioned, so a bad config push is undone by restoring a version.
+"""
+
+import json
+import os
+import re
+import time
+from datetime import datetime, timezone
+
+import boto3
+
+s3 = boto3.client("s3")
+
+BUCKET = os.environ["BUCKET"]
+DATA_PREFIX = os.environ.get("DATA_PREFIX", "data/")
+CONFIG_KEY = f"{DATA_PREFIX}config/config.json"
+FEEDBACK_PREFIX = f"{DATA_PREFIX}feedback/"
+
+MAX_BODY_BYTES = 256 * 1024
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+STORY_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$")
+SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+DOMAIN_RE = re.compile(r"^[a-z0-9.-]{3,253}$")
+VOTES = ("keep", "spike")
+WEIGHTS = ("high", "normal", "low")
+TRUSTS = ("preferred", "allowed", "blocked")
+
+
+class Invalid(Exception):
+    """Client error — reported as a 400 with the offending field."""
+
+
+def handler(event, _context):
+    http = event.get("requestContext", {}).get("http", {})
+    method = http.get("method", "GET")
+    path = event.get("rawPath", "") or ""
+
+    try:
+        if path.endswith("/health"):
+            return _reply(200, {"ok": True, "at": _now()})
+
+        if method != "POST":
+            return _reply(405, {"error": "method not allowed"})
+
+        body = _body(event)
+
+        if path.endswith("/feedback"):
+            return _feedback(body)
+        if path.endswith("/config"):
+            return _config(body)
+
+        return _reply(404, {"error": "no such route", "path": path})
+
+    except Invalid as e:
+        return _reply(400, {"error": str(e)})
+    except Exception as e:  # noqa: BLE001 — never leak a stack trace to the browser
+        print(f"ERROR {type(e).__name__}: {e}")
+        return _reply(500, {"error": "internal error"})
+
+
+# --------------------------------------------------------------------------- routes
+
+
+def _feedback(body):
+    story_id = _str(body, "storyId")
+    if not STORY_ID_RE.match(story_id):
+        raise Invalid("storyId must be 1-120 chars of [A-Za-z0-9._-]")
+
+    vote = _str(body, "vote")
+    if vote not in VOTES:
+        raise Invalid(f"vote must be one of {VOTES}")
+
+    edition_date = body.get("editionDate") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if not DATE_RE.match(str(edition_date)):
+        raise Invalid("editionDate must be YYYY-MM-DD")
+
+    event_doc = {
+        "storyId": story_id,
+        "vote": vote,
+        "topic": _opt_str(body.get("topic"), 64),
+        "model": _opt_str(body.get("model"), 64),
+        "editionDate": edition_date,
+        "at": _now(),
+    }
+
+    key = f"{FEEDBACK_PREFIX}{edition_date}/{story_id}-{int(time.time() * 1000)}.json"
+    _put(key, event_doc)
+    return _reply(200, {"ok": True, "key": key})
+
+
+def _config(body):
+    topics = []
+    for t in _list(body, "topics", limit=64):
+        slug = _str(t, "slug")
+        if not SLUG_RE.match(slug):
+            raise Invalid(f"topic slug '{slug}' must be lowercase kebab-case")
+        weight = t.get("weight", "normal")
+        topics.append(
+            {
+                "slug": slug,
+                "label": _opt_str(t.get("label"), 120) or slug,
+                "weight": weight if weight in WEIGHTS else "normal",
+                "enabled": t.get("enabled") is not False,
+            }
+        )
+    if not topics:
+        raise Invalid("config needs at least one topic")
+
+    sources = []
+    for s in _list(body, "sources", limit=256):
+        domain = _str(s, "domain").lower()
+        if not DOMAIN_RE.match(domain):
+            raise Invalid(f"source domain '{domain}' is not a bare domain")
+        trust = s.get("trust", "allowed")
+        sources.append({"domain": domain, "trust": trust if trust in TRUSTS else "allowed"})
+
+    version = body.get("version")
+    doc = {
+        "version": version if isinstance(version, int) and version > 0 else 1,
+        "exportedAt": _now(),
+        "briefName": _opt_str(body.get("briefName"), 120) or "The Daily Compile",
+        "topics": topics,
+        "sources": sources,
+    }
+    _put(CONFIG_KEY, doc)
+    return _reply(200, {"ok": True, "key": CONFIG_KEY, "version": doc["version"]})
+
+
+# --------------------------------------------------------------------------- helpers
+
+
+def _put(key, doc):
+    s3.put_object(
+        Bucket=BUCKET,
+        Key=key,
+        Body=json.dumps(doc, separators=(",", ":")).encode("utf-8"),
+        ContentType="application/json",
+        CacheControl="no-cache",
+    )
+
+
+def _body(event):
+    raw = event.get("body") or "{}"
+    if event.get("isBase64Encoded"):
+        import base64
+
+        raw = base64.b64decode(raw).decode("utf-8", "replace")
+    if len(raw.encode("utf-8")) > MAX_BODY_BYTES:
+        raise Invalid("body too large")
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise Invalid(f"body is not JSON: {e.msg}") from e
+    if not isinstance(parsed, dict):
+        raise Invalid("body must be a JSON object")
+    return parsed
+
+
+def _str(obj, field):
+    value = obj.get(field) if isinstance(obj, dict) else None
+    if not isinstance(value, str) or not value.strip():
+        raise Invalid(f"{field} is required")
+    return value.strip()
+
+
+def _opt_str(value, limit):
+    return value.strip()[:limit] if isinstance(value, str) and value.strip() else None
+
+
+def _list(body, field, limit):
+    value = body.get(field, [])
+    if not isinstance(value, list):
+        raise Invalid(f"{field} must be an array")
+    if len(value) > limit:
+        raise Invalid(f"{field} has more than {limit} entries")
+    return [v for v in value if isinstance(v, dict)]
+
+
+def _now():
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _reply(status, payload):
+    return {
+        "statusCode": status,
+        "headers": {"content-type": "application/json", "cache-control": "no-store"},
+        "body": json.dumps(payload),
+    }

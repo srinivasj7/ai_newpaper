@@ -1,0 +1,26 @@
+{
+  "date": "2026-07-14",
+  "edition": 24,
+  "generatedAt": "2026-07-15T01:10:00Z",
+  "pipeline": {
+    "candidates": ["claude-fable-5", "gpt-5.6-terra", "grok-4.5"],
+    "judge": "local-llama-70b"
+  },
+  "lead": {
+    "id": "e24-lead",
+    "topic": "markets",
+    "model": "grok",
+    "judgeScore": 8.6,
+    "sentiment": "bearish",
+    "headline": "IBM's worst day on record as AI eats the IT budget",
+    "dek": "Down 25%+ on a Q2 warning; customers rotate spend to AI infrastructure while cooler CPI lifts the Nasdaq 1.08%.",
+    "body": [
+      "IBM crashed more than 25% after warning that customers are redirecting budgets toward AI infrastructure. The same session, a cooler June CPI (~+3.5% YoY) lifted the tech-led Nasdaq, and the biggest US banks posted record Q2 profits led by JPMorgan."
+    ],
+    "whyItMatters": "The AI budget shift is no longer a thesis — it's showing up in legacy vendors' guidance.",
+    "sources": [
+      { "title": "Feed 2026-07-14", "url": "https://daily-tech-brief-self.vercel.app/feeds/2026-07-14.html" }
+    ]
+  },
+  "stories": []
+}

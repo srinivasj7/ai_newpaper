@@ -1,0 +1,16 @@
+# Copy to prod.auto.tfvars (untracked) and fill in. OpenTofu loads *.auto.tfvars automatically.
+# These are the values that would otherwise pin the repo to a specific account, repo or domain.
+
+# The state bucket created by infra/bootstrap.
+state_bucket = "daily-compile-tofu-state-CHANGEME"
+
+# owner/repo allowed to assume the deploy roles. In CI this comes from TF_VAR_github_repo instead.
+github_repo = "OWNER/REPO"
+
+# Optional: serve the paper on your own domain. Leave both unset to use the CloudFront domain.
+# A DNS-validated certificate is created for you (free); the apply waits for validation.
+# domain_name     = "paper.example.com"
+# route53_zone_id = "Z0123456789ABCDEFGHIJ"
+
+# Optional: reuse a certificate you already have instead of creating one.
+# acm_certificate_arn = "arn:aws:acm:us-east-1:...:certificate/..."

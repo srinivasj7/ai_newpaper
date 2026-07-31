@@ -1,0 +1,69 @@
+{
+  "date": "2026-07-16",
+  "edition": 25,
+  "generatedAt": "2026-07-17T01:10:00Z",
+  "pipeline": {
+    "candidates": ["claude-fable-5", "gpt-5.6-terra", "grok-4.5"],
+    "judge": "local-llama-70b"
+  },
+  "lead": {
+    "id": "e25-lead",
+    "topic": "chips",
+    "model": "claude",
+    "judgeScore": 8.8,
+    "sentiment": "bearish",
+    "headline": "TSMC posts a record quarter — and triggers a selloff",
+    "dek": "Record Q2 revenue with capex lifted to $60–64B; the Nasdaq falls 1.47% as AI-chip fatigue sets in.",
+    "body": [
+      "TSMC's blowout quarter came with a 2026 capex raise that markets read as a warning about spending discipline across the AI build-out. The result: a second-day chip selloff that dragged the broader index down sharply."
+    ],
+    "whyItMatters": "Capex raises used to be bullish signals. The reaction function has flipped.",
+    "sources": [
+      { "title": "Feed 2026-07-16", "url": "https://daily-tech-brief-self.vercel.app/feeds/2026-07-16.html" }
+    ]
+  },
+  "stories": [
+    {
+      "id": "e25-s1",
+      "topic": "ai",
+      "model": "gpt",
+      "judgeScore": 8.2,
+      "sentiment": "neutral",
+      "headline": "Google model report roils the AI trade",
+      "dek": "A Bloomberg report added fuel to the de-rating.",
+      "body": [
+        "A Bloomberg report on Google's model strategy compounded the risk-off tone in AI names through the session."
+      ],
+      "whyItMatters": "Narrative risk is now a bigger daily driver than earnings for the AI complex.",
+      "sources": [
+        { "title": "Feed 2026-07-16", "url": "https://daily-tech-brief-self.vercel.app/feeds/2026-07-16.html" }
+      ]
+    }
+  ],
+  "stocks": {
+    "updated": "post-close",
+    "picks": [
+      {
+        "ticker": "NVDA", "company": "NVIDIA", "sector": "Semis", "price": 209.55,
+        "scenarios": { "3m": 0, "6m": 5, "12m": 14, "18m": 20, "24m": 24 },
+        "conviction": "high", "sentiment": "neutral",
+        "reason": "High-conviction hold through the capex scare; demand signals intact.",
+        "sourceUrl": "https://daily-tech-brief-self.vercel.app/stocks/2026-07-16.html"
+      },
+      {
+        "ticker": "TSM", "company": "Taiwan Semiconductor", "sector": "Semis", "price": 402.10,
+        "scenarios": { "3m": 1, "6m": 6, "12m": 15, "18m": 19, "24m": 23 },
+        "conviction": "high", "sentiment": "bullish",
+        "reason": "Record quarter; selloff read as positioning, not fundamentals.",
+        "sourceUrl": "https://daily-tech-brief-self.vercel.app/stocks/2026-07-16.html"
+      },
+      {
+        "ticker": "AMAT", "company": "Applied Materials", "sector": "Semis", "price": null,
+        "scenarios": { "3m": 2, "6m": 6, "12m": 13, "18m": 16, "24m": 19 },
+        "conviction": "high", "sentiment": "bullish",
+        "reason": "Capex hikes across the fab complex flow straight to equipment makers.",
+        "sourceUrl": "https://daily-tech-brief-self.vercel.app/stocks/2026-07-16.html"
+      }
+    ]
+  }
+}

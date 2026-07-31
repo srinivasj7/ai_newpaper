@@ -1,0 +1,111 @@
+name: infra
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra.yml"
+  pull_request:
+    paths:
+      - "infra/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+concurrency:
+  group: infra
+  cancel-in-progress: false
+
+env:
+  TOFU_VERSION: 1.10.6
+  # Account-, repo- and domain-specific values are not in the repo. The repo name comes from
+  # the workflow context; the rest come from repository variables.
+  TF_VAR_github_repo: ${{ github.repository }}
+  TF_VAR_state_bucket: ${{ vars.TF_STATE_BUCKET }}
+  TF_VAR_domain_name: ${{ vars.SITE_DOMAIN }}
+  TF_VAR_route53_zone_id: ${{ vars.ROUTE53_ZONE_ID }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/envs/prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+
+      - name: Format check
+        run: tofu fmt -check -recursive ../..
+
+      - name: Lambda handler tests
+        run: python3 tests/test_handler.py
+        working-directory: infra/modules/api
+
+      # Prints only the identifying claims, never the token. GitHub is moving the subject claim
+      # to a form that embeds numeric ids, and a mismatch here surfaces as an opaque
+      # "Not authorized to perform sts:AssumeRoleWithWebIdentity" from the next step.
+      - name: Show OIDC subject claim
+        run: |
+          token=$(curl -sH "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
+          echo "$token" | jq -R 'split(".") | .[1] | @base64d | fromjson | {sub, aud, repository, event_name}'
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ github.event_name == 'pull_request' && vars.AWS_TOFU_PLAN_ROLE_ARN || vars.AWS_TOFU_APPLY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Init
+        run: tofu init -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" -backend-config="region=${{ vars.AWS_REGION }}"
+      - run: tofu validate
+      - run: tofu plan -no-color -out=tfplan
+
+      - name: Comment the plan
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execSync } = require('node:child_process');
+            const plan = execSync('tofu show -no-color tfplan', { cwd: 'infra/envs/prod' })
+              .toString()
+              .slice(0, 60000);
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `<details><summary>tofu plan</summary>\n\n\`\`\`terraform\n${plan}\n\`\`\`\n</details>`,
+            });
+
+  apply:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: prod
+    defaults:
+      run:
+        working-directory: infra/envs/prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_TOFU_APPLY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Init
+        run: tofu init -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" -backend-config="region=${{ vars.AWS_REGION }}"
+      # Re-planned here rather than reusing the artifact: the plan job may have run
+      # under the read-only role, and a plan is only as good as the state it locked.
+      - run: tofu apply -auto-approve

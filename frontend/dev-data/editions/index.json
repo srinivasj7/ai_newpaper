@@ -1,0 +1,32 @@
+[
+  {
+    "date": "2026-07-17",
+    "edition": 26,
+    "leadHeadline": "Apple reclaims the crown as the chip rout deepens",
+    "storyCount": 5,
+    "hasStocks": true,
+    "hasOptions": true,
+    "candidateCount": 3,
+    "stocks": { "count": 10, "lean": "bearish", "highConviction": [] },
+    "options": { "count": 8, "lean": "bullish" }
+  },
+  {
+    "date": "2026-07-16",
+    "edition": 25,
+    "leadHeadline": "TSMC posts a record quarter — and triggers a selloff",
+    "storyCount": 2,
+    "hasStocks": true,
+    "hasOptions": false,
+    "candidateCount": 3,
+    "stocks": { "count": 3, "lean": "bullish", "highConviction": ["NVDA", "TSM", "AMAT"] }
+  },
+  {
+    "date": "2026-07-14",
+    "edition": 24,
+    "leadHeadline": "IBM's worst day on record as AI eats the IT budget",
+    "storyCount": 1,
+    "hasStocks": false,
+    "hasOptions": false,
+    "candidateCount": 3
+  }
+]

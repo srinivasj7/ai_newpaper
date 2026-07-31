@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "exportedAt": "2026-07-18T01:10:00Z",
+  "briefName": "The Daily Compile",
+  "topics": [
+    { "slug": "ai", "label": "AI & Models", "weight": "high", "enabled": true },
+    { "slug": "markets", "label": "Markets", "weight": "normal", "enabled": true },
+    { "slug": "chips", "label": "Chips & Hardware", "weight": "high", "enabled": true },
+    { "slug": "oss", "label": "GitHub & Open Source", "weight": "normal", "enabled": true },
+    { "slug": "funding", "label": "Funding & Deals", "weight": "low", "enabled": true }
+  ],
+  "sources": [
+    { "domain": "reuters.com", "trust": "preferred" },
+    { "domain": "sec.gov", "trust": "preferred" },
+    { "domain": "bloomberg.com", "trust": "allowed" },
+    { "domain": "techcrunch.com", "trust": "allowed" },
+    { "domain": "news.ycombinator.com", "trust": "allowed" }
+  ]
+}
