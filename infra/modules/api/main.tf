@@ -25,6 +25,11 @@ data "archive_file" "lambda" {
   type        = "zip"
   source_dir  = "${path.module}/lambda"
   output_path = "${path.module}/.build/handler.zip"
+
+  # Without a fixed mode the zip carries whatever permission bits the local filesystem reports,
+  # so Windows and Linux produce different hashes for identical source and every CI plan shows
+  # the function as changed. Pinning it makes the artifact reproducible anywhere.
+  output_file_mode = "0644"
 }
 
 data "aws_iam_policy_document" "assume" {
