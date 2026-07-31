@@ -11,6 +11,7 @@ dist/
 
 # OpenTofu / Terraform
 .terraform/
+.build/
 .terraform.lock.hcl.bak
 *.tfstate
 *.tfstate.*

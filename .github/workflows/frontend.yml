@@ -1,0 +1,83 @@
+name: frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+  pull_request:
+    paths:
+      - "frontend/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npm run build
+
+      # Fixtures are dev-server only. If they ever reach dist/, they would shadow the
+      # real pipeline output on S3 — fail loudly instead.
+      - name: Assert no fixtures in the bundle
+        run: test ! -d dist/data
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: frontend/dist
+          retention-days: 7
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: dist
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # Hashed assets first and immutable; the entry document last and uncached, so a
+      # viewer never gets an index.html pointing at assets that aren't up yet.
+      - name: Sync assets
+        run: |
+          aws s3 sync dist/ "s3://${{ vars.SITE_BUCKET }}/site/" \
+            --delete --exclude "index.html" \
+            --cache-control "public,max-age=31536000,immutable"
+
+      - name: Sync entry document
+        run: |
+          aws s3 cp dist/index.html "s3://${{ vars.SITE_BUCKET }}/site/index.html" \
+            --cache-control "no-cache"
+
+      - name: Invalidate
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/" "/index.html"
