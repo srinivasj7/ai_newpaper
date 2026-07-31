@@ -1,0 +1,60 @@
+# Provider registry. Adding, removing or disabling a model is a change to this file only —
+# never to the code. Every enabled candidate writes the same brief; the judge picks between them.
+
+candidates:
+  # Claude Code, headless. Tools are disabled explicitly: this is a writer, not an agent.
+  # It authenticates from the host's stored credentials, or CLAUDE_CODE_OAUTH_TOKEN for
+  # unattended runs (see .env.example).
+  - id: claude
+    enabled: true
+    adapter: cli
+    output: claude_json
+    timeout_s: 420
+    command:
+      - claude
+      - "-p"
+      - "--output-format"
+      - "json"
+      - "--disallowed-tools"
+      - "Bash,Read,Write,Edit,NotebookEdit,WebFetch,WebSearch,Glob,Grep,Task,TodoWrite"
+
+  # Not installed on this machine yet. Verify the flags before enabling — `codex exec` reads
+  # the prompt from stdin like claude does, but its output is plain text, not an envelope.
+  - id: gpt
+    enabled: false
+    adapter: cli
+    output: text
+    timeout_s: 420
+    command: ["codex", "exec", "--skip-git-repo-check", "-"]
+
+  - id: grok
+    enabled: false
+    adapter: cli
+    output: text
+    timeout_s: 420
+    command: ["grok", "-p"]
+
+  # Example hosted provider. Adding one is YAML only; the key is read from the named variable.
+  - id: bedrock-nova
+    enabled: false
+    adapter: openai_compatible
+    base_url: "https://example.invalid/v1"
+    model: "amazon.nova-pro-v1:0"
+    api_key_env: BEDROCK_API_KEY
+    timeout_s: 300
+
+# The judge only runs when two or more candidates succeed — with one writer there is nothing
+# to choose between, and a fabricated score is worse than none.
+#
+# Note on model size: llama3.3:70b needs roughly 40 GB of VRAM. On a 16 GB card use an 8-14B
+# judge; scoring is a reading task and a smaller model does it adequately.
+judge:
+  enabled: true
+  adapter: openai_compatible
+  base_url: "${OLLAMA_BASE_URL}"
+  model: "llama3.1:8b"
+  timeout_s: 300
+  temperature: 0.0
+
+# Publish as long as this many candidates produced a valid edition.
+min_candidates: 1
