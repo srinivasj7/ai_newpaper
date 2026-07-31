@@ -21,15 +21,23 @@ terraform {
   }
 }
 
+/*
+ * Zipped from inline content rather than source_dir on purpose. With source_dir the archive
+ * carries each file's modification time, which is set afresh by every git checkout — so the
+ * hash changed on every runner and each CI plan reported the function as modified even though
+ * the source was identical. Content blocks have no mtime to record, and the pinned file mode
+ * keeps Windows and Linux from disagreeing about permission bits. The result depends on the
+ * source and nothing else.
+ */
 data "archive_file" "lambda" {
-  type        = "zip"
-  source_dir  = "${path.module}/lambda"
-  output_path = "${path.module}/.build/handler.zip"
-
-  # Without a fixed mode the zip carries whatever permission bits the local filesystem reports,
-  # so Windows and Linux produce different hashes for identical source and every CI plan shows
-  # the function as changed. Pinning it makes the artifact reproducible anywhere.
+  type             = "zip"
+  output_path      = "${path.module}/.build/handler.zip"
   output_file_mode = "0644"
+
+  source {
+    content  = file("${path.module}/lambda/handler.py")
+    filename = "handler.py"
+  }
 }
 
 data "aws_iam_policy_document" "assume" {
