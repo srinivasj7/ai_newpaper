@@ -69,6 +69,47 @@ resource "aws_cloudfront_cache_policy" "short" {
   }
 }
 
+/*
+ * Every response, HTML and JSON alike, is marked as excluded from indexing. The meta tags in
+ * index.html only reach crawlers that render the page; this header reaches everything that
+ * makes a request, including the raw edition documents under /data.
+ */
+resource "aws_cloudfront_response_headers_policy" "private" {
+  name    = "${var.name}-private"
+  comment = "noindex + hardening headers for a private publication"
+
+  custom_headers_config {
+    items {
+      header   = "X-Robots-Tag"
+      value    = "noindex, nofollow, noarchive, nosnippet, noimageindex, notranslate"
+      override = true
+    }
+  }
+
+  security_headers_config {
+    content_type_options {
+      override = true
+    }
+
+    frame_options {
+      frame_option = "DENY"
+      override     = true
+    }
+
+    referrer_policy {
+      referrer_policy = "no-referrer"
+      override        = true
+    }
+
+    strict_transport_security {
+      access_control_max_age_sec = 31536000
+      include_subdomains         = false
+      preload                    = false
+      override                   = true
+    }
+  }
+}
+
 resource "aws_cloudfront_distribution" "site" {
   enabled             = true
   is_ipv6_enabled     = true
@@ -104,43 +145,47 @@ resource "aws_cloudfront_distribution" "site" {
   }
 
   default_cache_behavior {
-    target_origin_id       = local.s3_site_origin
-    viewer_protocol_policy = "redirect-to-https"
-    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
-    cached_methods         = ["GET", "HEAD"]
-    compress               = true
-    cache_policy_id        = data.aws_cloudfront_cache_policy.optimized.id
+    target_origin_id           = local.s3_site_origin
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = data.aws_cloudfront_cache_policy.optimized.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.private.id
   }
 
   ordered_cache_behavior {
-    path_pattern           = "/data/editions/index.json"
-    target_origin_id       = local.s3_data_origin
-    viewer_protocol_policy = "redirect-to-https"
-    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
-    cached_methods         = ["GET", "HEAD"]
-    compress               = true
-    cache_policy_id        = aws_cloudfront_cache_policy.short.id
+    path_pattern               = "/data/editions/index.json"
+    target_origin_id           = local.s3_data_origin
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = aws_cloudfront_cache_policy.short.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.private.id
   }
 
   ordered_cache_behavior {
-    path_pattern           = "/data/config/config.json"
-    target_origin_id       = local.s3_data_origin
-    viewer_protocol_policy = "redirect-to-https"
-    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
-    cached_methods         = ["GET", "HEAD"]
-    compress               = true
-    cache_policy_id        = aws_cloudfront_cache_policy.short.id
+    path_pattern               = "/data/config/config.json"
+    target_origin_id           = local.s3_data_origin
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = aws_cloudfront_cache_policy.short.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.private.id
   }
 
   # Dated editions never change once published.
   ordered_cache_behavior {
-    path_pattern           = "/data/*"
-    target_origin_id       = local.s3_data_origin
-    viewer_protocol_policy = "redirect-to-https"
-    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
-    cached_methods         = ["GET", "HEAD"]
-    compress               = true
-    cache_policy_id        = data.aws_cloudfront_cache_policy.optimized.id
+    path_pattern               = "/data/*"
+    target_origin_id           = local.s3_data_origin
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = data.aws_cloudfront_cache_policy.optimized.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.private.id
   }
 
   ordered_cache_behavior {
@@ -155,8 +200,9 @@ resource "aws_cloudfront_distribution" "site" {
     # request as Forbidden. The responses here are a few dozen bytes of JSON regardless.
     compress = false
 
-    cache_policy_id          = data.aws_cloudfront_cache_policy.disabled.id
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+    cache_policy_id            = data.aws_cloudfront_cache_policy.disabled.id
+    origin_request_policy_id   = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.private.id
   }
 
   # No custom_error_response on purpose. Custom error responses are distribution-wide, so a

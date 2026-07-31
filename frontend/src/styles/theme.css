@@ -148,7 +148,20 @@ pre.dc-export{font-family:var(--mono); font-size:11.5px; background:#fff;
   border:1px solid var(--rule-dark); padding:12px; margin-top:10px; overflow-x:auto;
   max-height:280px; white-space:pre-wrap; word-break:break-word;}
 
-/* Save state + wire-down banner */
+/* Terms & disclaimer */
+.dc-legal h4{font-family:var(--label); font-size:12px; font-weight:700; letter-spacing:.18em;
+  text-transform:uppercase; margin:26px 0 6px; color:var(--ink);}
+.dc-legal p{max-width:74ch; margin-top:8px; font-size:16px; color:var(--ink);}
+.dc-legal a{color:var(--wire);}
+
+/* Footer links */
+.dc-foot .dc-footlink{appearance:none; background:none; border:none; cursor:pointer; padding:0;
+  font-family:var(--mono); font-size:11px; letter-spacing:.05em; color:var(--ink-soft);
+  border-bottom:1px solid var(--rule); }
+.dc-foot .dc-footlink:hover{color:var(--wire); border-color:var(--wire);}
+.dc-foot .sep{margin:0 8px; color:var(--rule-dark); opacity:.4;}
+
+/* Save state + connection banner */
 .dc-save{font-family:var(--mono); font-size:11px; letter-spacing:.05em; color:var(--ink-soft);
   align-self:center;}
 .dc-save.saving{color:var(--ink-soft);} .dc-save.saved{color:var(--up);} .dc-save.failed{color:var(--down);}

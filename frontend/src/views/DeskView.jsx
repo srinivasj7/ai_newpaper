@@ -1,7 +1,12 @@
 import { useMemo, useState } from "react";
 import { TRUSTS, WEIGHTS } from "../defaults.js";
 
-const SAVE_TEXT = { idle: "", saving: "Saving…", saved: "Saved to the pipeline ✓", failed: "Couldn't reach the pipeline — kept locally" };
+const SAVE_TEXT = {
+  idle: "",
+  saving: "Saving…",
+  saved: "Saved",
+  failed: "Save failed — changes kept in this browser",
+};
 
 export default function DeskView({ config, setConfig, saveState, feedback, onImport, importedCount, onClearImported }) {
   const [topicName, setTopicName] = useState("");
@@ -63,10 +68,13 @@ export default function DeskView({ config, setConfig, saveState, feedback, onImp
         if (!e?.date || (!e.lead && !e.stories)) throw new Error("edition needs at least `date` and `lead` or `stories`");
       }
       const kept = onImport(eds);
-      setImportMsg({ ok: true, text: `Imported ${kept.length} edition${kept.length > 1 ? "s" : ""}. Check the Archive.` });
+      setImportMsg({
+        ok: true,
+        text: `Imported ${kept.length} edition${kept.length > 1 ? "s" : ""}. Available in the archive.`,
+      });
       setImportText("");
     } catch (e) {
-      setImportMsg({ ok: false, text: `Rejected: ${e.message}` });
+      setImportMsg({ ok: false, text: `Import rejected: ${e.message}` });
     }
   };
 
@@ -82,8 +90,8 @@ export default function DeskView({ config, setConfig, saveState, feedback, onImp
 
   return (
     <div className="dc-desk">
-      <h3>Masthead</h3>
-      <p className="hint">Name the paper. It's yours, after all.</p>
+      <h3>Publication</h3>
+      <p className="hint">The name shown in the masthead.</p>
       <div className="dc-add">
         <input value={config.briefName} onChange={(e) => save({ ...config, briefName: e.target.value })} aria-label="Brief name" />
         <span className={`dc-save ${saveState}`}>{SAVE_TEXT[saveState]}</span>
@@ -91,7 +99,8 @@ export default function DeskView({ config, setConfig, saveState, feedback, onImp
 
       <h3>Topics</h3>
       <p className="hint">
-        Weight tells the pipeline how much column space each desk earns. Toggling off hides it here and exports as disabled.
+        Weight determines how much of each edition a topic is allocated. A disabled topic is hidden here and excluded
+        from generation.
       </p>
       {config.topics.map((t) => (
         <div className="dc-row" key={t.slug}>
@@ -143,7 +152,7 @@ export default function DeskView({ config, setConfig, saveState, feedback, onImp
       </div>
 
       <h3>Sources</h3>
-      <p className="hint">Preferred sources get cited first; blocked ones never make print.</p>
+      <p className="hint">Preferred sources are cited first. Blocked sources are excluded from every edition.</p>
       {config.sources.map((s) => (
         <div className="dc-row" key={s.domain}>
           <span className="name" style={{ fontFamily: "var(--mono)", fontSize: 14 }}>
@@ -186,14 +195,15 @@ export default function DeskView({ config, setConfig, saveState, feedback, onImp
         </button>
       </div>
 
-      <h3>Pipeline exchange</h3>
+      <h3>Configuration &amp; data</h3>
       <p className="hint">
-        Config saves straight to the pipeline; the payload below is the fallback when the wire is down. Paste edition JSON to
-        preview it here before it ships. {Object.keys(feedback).length} feedback marks recorded.
+        Changes are saved automatically. The payload below is a manual fallback for when the service is unreachable.
+        Edition JSON can be pasted in to preview it locally before publication. {Object.keys(feedback).length} feedback
+        {Object.keys(feedback).length === 1 ? " entry" : " entries"} recorded in this browser.
       </p>
       <div className="dc-add">
         <button className="dc-btn" onClick={copyExport}>
-          {copied ? "Copied ✓" : "Copy config + feedback JSON"}
+          {copied ? "Copied" : "Copy configuration JSON"}
         </button>
         <button className="dc-btn ghost" onClick={() => setShowExport((s) => !s)}>
           {showExport ? "Hide" : "View"} payload
@@ -212,7 +222,7 @@ export default function DeskView({ config, setConfig, saveState, feedback, onImp
           </button>
           {importedCount > 0 && (
             <button className="dc-btn ghost" onClick={onClearImported}>
-              Drop {importedCount} imported
+              Remove {importedCount} imported
             </button>
           )}
         </div>

@@ -5,8 +5,8 @@ export default function ErrorBanner({ error, stale, onRetry }) {
     <div className="dc-banner" role="status">
       <span>
         {stale
-          ? "The wire is down — showing the last paper we have."
-          : "The wire is down and nothing is cached yet."}
+          ? "Unable to reach the service. Showing the most recent cached edition."
+          : "Unable to reach the service, and no edition is cached locally."}
       </span>
       <span style={{ opacity: 0.75 }}>{error.message}</span>
       <button className="retry" onClick={onRetry}>

@@ -3,6 +3,7 @@ import "./styles/theme.css";
 import ErrorBanner from "./components/ErrorBanner.jsx";
 import ArchiveView from "./views/ArchiveView.jsx";
 import DeskView from "./views/DeskView.jsx";
+import DisclaimerView from "./views/DisclaimerView.jsx";
 import EditionView from "./views/EditionView.jsx";
 import OptionsView from "./views/OptionsView.jsx";
 import StocksView from "./views/StocksView.jsx";
@@ -11,12 +12,15 @@ import { useEditions } from "./state/useEditions.js";
 import { useFeedback } from "./state/useFeedback.js";
 import { todayShort } from "./format.js";
 
+/** "1 edition", "3 editions" — the counts in the footer are user-visible prose, not debug output. */
+const count = (n, noun) => `${n} ${n === 1 ? noun : `${noun}s`}`;
+
 const TABS = [
-  ["today", "Today's Edition"],
-  ["stocks", "Stocks"],
+  ["today", "Current Edition"],
+  ["stocks", "Equities"],
   ["options", "Options"],
   ["archive", "Archive"],
-  ["desk", "The Desk"],
+  ["desk", "Settings"],
 ];
 
 export default function App() {
@@ -71,7 +75,7 @@ export default function App() {
             <span>{todayShort()}</span>
           </div>
           <h1>{config.briefName || "The Daily Compile"}</h1>
-          <p className="dc-mast-sub">Three models write · one judge decides · you get the paper</p>
+          <p className="dc-mast-sub">Automated multi-model research brief · machine-generated · unverified</p>
         </header>
 
         <nav className="dc-nav" aria-label="Sections">
@@ -85,14 +89,14 @@ export default function App() {
         <ErrorBanner error={error} stale={stale} onRetry={retry} />
 
         {loading ? (
-          <p className="dc-empty">Setting the type…</p>
+          <p className="dc-empty">Loading…</p>
         ) : (
           <>
             {view === "today" &&
               (current ? (
                 <EditionView edition={current} config={config} feedback={feedback} onVote={onVote} />
               ) : (
-                <p className="dc-empty">{editionLoading ? "Setting the type…" : "No edition to print yet."}</p>
+                <p className="dc-empty">{editionLoading ? "Loading…" : "No edition has been published yet."}</p>
               ))}
             {view === "stocks" && <StocksView edition={current} entries={entries} onOpenDate={openEdition} />}
             {view === "options" && <OptionsView edition={current} entries={entries} onOpenDate={openEdition} />}
@@ -108,12 +112,24 @@ export default function App() {
                 onClearImported={clearImported}
               />
             )}
+            {view === "legal" && <DisclaimerView />}
           </>
         )}
 
         <footer className="dc-foot">
-          {entries.length} feed briefs · {stocksCount} stock snapshots · {optionsCount} options sheets · auto-generated ·
-          multi-model pipeline · AI research, not investment advice
+          <div>
+            {count(entries.length, "edition")} · {count(stocksCount, "equity snapshot")} ·{" "}
+            {count(optionsCount, "options sheet")} · generated automatically by language models and published without
+            human review
+          </div>
+          <div style={{ marginTop: 6 }}>
+            Not investment advice. No warranty. See{" "}
+            <button className="dc-footlink" onClick={() => setView("legal")}>
+              Terms &amp; Disclaimer
+            </button>
+            <span className="sep">·</span>
+            Not indexed; automated access and model training are not permitted
+          </div>
         </footer>
       </div>
     </div>

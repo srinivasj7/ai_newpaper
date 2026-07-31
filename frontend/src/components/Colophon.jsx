@@ -46,6 +46,7 @@ export default function Colophon({ story, feedback, onVote }) {
           className={vote === "keep" ? "on-keep" : ""}
           onClick={() => onVote(story, "keep")}
           aria-pressed={vote === "keep"}
+          title="Prioritise stories like this in future editions"
         >
           More like this
         </button>
@@ -53,8 +54,9 @@ export default function Colophon({ story, feedback, onVote }) {
           className={vote === "spike" ? "on-spike" : ""}
           onClick={() => onVote(story, "spike")}
           aria-pressed={vote === "spike"}
+          title="Deprioritise stories like this in future editions"
         >
-          Spike
+          Less like this
         </button>
       </span>
     </div>

@@ -17,7 +17,7 @@ export default function OptionsView({ edition, entries, onOpenDate }) {
   if (!ideas) {
     return (
       <>
-        <p className="dc-empty">No options sheet in this edition.</p>
+        <p className="dc-empty">This edition contains no options sheet.</p>
         <SnapshotList entries={entries} currentDate={edition?.date} kind="options" onOpen={onOpenDate} />
       </>
     );
@@ -26,9 +26,13 @@ export default function OptionsView({ edition, entries, onOpenDate }) {
   return (
     <div>
       <div className="dc-mkt-head">
-        <h2>Directional Ideas</h2>
+        <h2>Options Structures</h2>
         <span className="tag">{edition.options.updated}</span>
       </div>
+      <p className="hint" style={{ fontStyle: "italic", color: "var(--ink-soft)", marginBottom: 10 }}>
+        Illustrative structures only. Select a row for the stated rationale. Options carry a risk of rapid and total
+        loss of premium.
+      </p>
       <div className="dc-tablewrap">
         <table className="dc-tab">
           <thead>
@@ -94,8 +98,10 @@ export default function OptionsView({ edition, entries, onOpenDate }) {
         </table>
       </div>
       <p className="dc-mkt-note">
-        Aggressive-case multiples are hypothetical, model-derived best cases — low probability, not expected returns.
-        Premiums and strikes are approximations; verify live. Not investment advice.
+        Aggressive-case multiples are hypothetical, model-derived best cases: low probability, and not expected
+        returns. Stated probabilities are not statistically derived. Premiums and strikes are approximations and must
+        be verified against live quotes. Options can expire worthless and some positions can lose more than the amount
+        invested. Not investment advice.
       </p>
       <SnapshotList entries={entries} currentDate={edition.date} kind="options" onOpen={onOpenDate} />
     </div>

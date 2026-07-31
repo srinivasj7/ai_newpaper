@@ -47,7 +47,9 @@ export default function EditionView({ edition, config, feedback, onVote }) {
         </section>
       ))}
 
-      {edition.stories.length === 0 && <p className="dc-empty">A thin news day — only the lead made the cut.</p>}
+      {edition.stories.length === 0 && (
+        <p className="dc-empty">This edition contains no stories beyond the lead.</p>
+      )}
     </div>
   );
 }

@@ -31,7 +31,7 @@ export default function Story({ story, topicLabel, feedback, onVote, lead }) {
       )}
       {!lead && story.body.length > 0 && (
         <button className="dc-more" onClick={() => setOpen((o) => !o)}>
-          {open ? "Fold" : "Read"}
+          {open ? "Show less" : "Read more"}
         </button>
       )}
       <Colophon story={story} feedback={feedback} onVote={onVote} />

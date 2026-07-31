@@ -10,7 +10,7 @@ export default function StocksView({ edition, entries, onOpenDate }) {
   if (!picks) {
     return (
       <>
-        <p className="dc-empty">No stocks snapshot in this edition. The pipeline owes you one.</p>
+        <p className="dc-empty">This edition contains no equities snapshot.</p>
         <SnapshotList entries={entries} currentDate={edition?.date} kind="stocks" onOpen={onOpenDate} />
       </>
     );
@@ -19,11 +19,11 @@ export default function StocksView({ edition, entries, onOpenDate }) {
   return (
     <div>
       <div className="dc-mkt-head">
-        <h2>Picks &amp; Scenario Ranges</h2>
+        <h2>Equities &amp; Scenario Ranges</h2>
         <span className="tag">{edition.stocks.updated}</span>
       </div>
       <p className="hint" style={{ fontStyle: "italic", color: "var(--ink-soft)", marginBottom: 10 }}>
-        Model-projected midpoints. Tap a row for the reasoning and source.
+        Model-projected midpoints under stated assumptions. Select a row for the stated rationale and its source.
       </p>
       <div className="dc-tablewrap">
         <table className="dc-tab">
@@ -82,8 +82,8 @@ export default function StocksView({ edition, entries, onOpenDate }) {
         </table>
       </div>
       <p className="dc-mkt-note">
-        Speculative, AI-generated scenarios under stated assumptions — not forecasts, price targets, or guarantees. Not
-        investment advice.
+        Speculative, machine-generated scenarios produced under stated assumptions. They are not forecasts, price
+        targets, valuations, or guarantees, and they have not been reviewed by a person. Not investment advice.
       </p>
       <SnapshotList entries={entries} currentDate={edition.date} kind="stocks" onOpen={onOpenDate} />
     </div>
