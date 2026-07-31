@@ -1,0 +1,55 @@
+name: pipeline
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pipeline/**"
+      - ".github/workflows/pipeline.yml"
+  pull_request:
+    paths:
+      - "pipeline/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pipeline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pipeline
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pipeline/requirements.txt
+
+      - run: pip install -r requirements.txt
+
+      # No network, no AWS, no model — these cover the code that decides what reaches print.
+      - name: Tests
+        run: python -m tests.test_pipeline
+
+      # The registry is read at startup; a malformed entry should fail here, not at 06:15.
+      - name: Provider registry parses
+        run: |
+          python - <<'PY'
+          from src.settings import Providers
+          p = Providers.load()
+          print(f"{len(p.candidates)} enabled candidate(s), min_candidates={p.min_candidates}")
+          assert p.candidates, "no enabled candidates"
+          for c in p.candidates:
+              assert c.get("id") and c.get("adapter"), f"incomplete provider entry: {c}"
+          PY
+
+      - name: Image builds
+        run: docker build -t daily-compile-pipeline:ci .
