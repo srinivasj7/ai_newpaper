@@ -22,6 +22,12 @@ concurrency:
 
 env:
   TOFU_VERSION: 1.10.6
+  # Account-, repo- and domain-specific values are not in the repo. The repo name comes from
+  # the workflow context; the rest come from repository variables.
+  TF_VAR_github_repo: ${{ github.repository }}
+  TF_VAR_state_bucket: ${{ vars.TF_STATE_BUCKET }}
+  TF_VAR_domain_name: ${{ vars.SITE_DOMAIN }}
+  TF_VAR_route53_zone_id: ${{ vars.ROUTE53_ZONE_ID }}
 
 jobs:
   plan:
@@ -48,7 +54,8 @@ jobs:
           role-to-assume: ${{ github.event_name == 'pull_request' && vars.AWS_TOFU_PLAN_ROLE_ARN || vars.AWS_TOFU_APPLY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - run: tofu init
+      - name: Init
+        run: tofu init -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" -backend-config="region=${{ vars.AWS_REGION }}"
       - run: tofu validate
       - run: tofu plan -no-color -out=tfplan
 
@@ -88,7 +95,8 @@ jobs:
           role-to-assume: ${{ vars.AWS_TOFU_APPLY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - run: tofu init
+      - name: Init
+        run: tofu init -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" -backend-config="region=${{ vars.AWS_REGION }}"
       # Re-planned here rather than reusing the artifact: the plan job may have run
       # under the read-only role, and a plan is only as good as the state it locked.
       - run: tofu apply -auto-approve

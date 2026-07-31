@@ -1,7 +1,6 @@
 # ai_newpaper — Implementation Handover
 
-**Repo:** https://github.com/srinivasj7/ai_newpaper (monorepo)
-**Owner:** Srinivas J. · **Working title:** The Daily Compile
+**Repo:** this one (monorepo) · **Working title:** The Daily Compile
 **This document is the single source of truth for implementation. The design reference frontend (`daily-brief.jsx`) accompanies it.**
 
 ---
@@ -269,7 +268,7 @@ Host schedules `docker compose run --rm pipeline` (cron or systemd timer — doc
 - **modules/data:** bucket (private, versioned, SSE-S3), prefixes per §4, lifecycle rules, bucket policy allowing the CF OAC read on site+data prefixes and the pipeline role write on data prefixes.
 - **modules/site:** CloudFront distro — default behavior → site prefix (SPA fallback to index.html), `/data/*` → data origin (short TTL on `index.json` & `config.json`, long TTL on dated edition files), `/api/*` → Lambda Function URL origin with OAC (Lambda invokable only via CF). ACM cert in us-east-1. Domain optional — parameterize.
 - **modules/api:** Python Lambda: `POST /api/feedback` → validate §5.3, write one object to per-day prefix; `POST /api/config` → validate §5.2, put `config.json` (bucket versioning = undo); `GET /api/health`. Least-priv role (put on feedback prefix, put on config key). Basic rate sanity (~1k/day expected — a CF WAF rate rule is optional, skip for v1).
-- **modules/ci:** GitHub OIDC provider + two roles trust-scoped to `repo:srinivasj7/ai_newpaper`: frontend-deploy (sync site prefix + invalidation) and tofu-apply (broader, main branch only).
+- **modules/ci:** GitHub OIDC provider + two roles trust-scoped to `repo:<owner>/<repo>` (supplied at apply time, never committed): frontend-deploy (sync site prefix + invalidation) and tofu-apply (broader, main branch only).
 - Outputs: distro domain, bucket names, role ARNs — consumed by workflows and pipeline `.env.example`.
 
 ## 9. Phases & acceptance criteria

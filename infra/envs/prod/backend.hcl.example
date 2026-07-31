@@ -1,0 +1,5 @@
+# Copy to backend.hcl (untracked) and fill in, then: tofu init -backend-config=backend.hcl
+# The bucket is the one created by infra/bootstrap.
+
+bucket = "daily-compile-tofu-state-CHANGEME"
+region = "us-east-1"

@@ -3,6 +3,11 @@ output "site_url" {
   value       = module.site.site_url
 }
 
+output "cloudfront_domain" {
+  description = "The distribution's own domain — still works when a custom domain is set."
+  value       = module.site.domain_name
+}
+
 output "distribution_id" {
   description = "Needed by the frontend deploy workflow for invalidations."
   value       = module.site.distribution_id

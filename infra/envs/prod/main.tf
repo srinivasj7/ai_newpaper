@@ -33,12 +33,49 @@ provider "aws" {
   }
 }
 
+# CloudFront only accepts certificates from us-east-1, wherever the rest of the stack lives.
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+
+  default_tags {
+    tags = {
+      Project   = var.project
+      ManagedBy = "opentofu"
+      Repo      = var.github_repo
+    }
+  }
+}
+
 data "aws_caller_identity" "current" {}
 
 locals {
   bucket_name = coalesce(var.bucket_name, "${var.project}-${data.aws_caller_identity.current.account_id}")
   site_prefix = "site/"
   data_prefix = "data/"
+
+  # An unset repository variable reaches TF_VAR_* as "", not null. Treat both as absent.
+  domain_name = var.domain_name == null || var.domain_name == "" ? null : var.domain_name
+  zone_id     = var.route53_zone_id == null || var.route53_zone_id == "" ? null : var.route53_zone_id
+  given_cert  = var.acm_certificate_arn == null || var.acm_certificate_arn == "" ? null : var.acm_certificate_arn
+
+  aliases = local.domain_name == null ? [] : [local.domain_name]
+
+  # Create a certificate only when a domain is wanted and one wasn't supplied.
+  create_cert     = local.domain_name != null && local.given_cert == null
+  certificate_arn = local.create_cert ? module.cert[0].certificate_arn : local.given_cert
+}
+
+module "cert" {
+  source = "../../modules/cert"
+  count  = local.create_cert ? 1 : 0
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  domain_name     = local.domain_name
+  route53_zone_id = local.zone_id
 }
 
 module "data" {
@@ -65,8 +102,8 @@ module "site" {
   bucket_regional_domain_name = module.data.bucket_regional_domain_name
   site_prefix                 = local.site_prefix
   api_origin_host             = module.api.function_url_host
-  aliases                     = var.aliases
-  acm_certificate_arn         = var.acm_certificate_arn
+  aliases                     = local.aliases
+  acm_certificate_arn         = local.certificate_arn
   price_class                 = var.price_class
 }
 
@@ -140,4 +177,21 @@ resource "aws_lambda_permission" "cloudfront" {
   principal              = "cloudfront.amazonaws.com"
   source_arn             = module.site.distribution_arn
   function_url_auth_type = "AWS_IAM"
+}
+
+# Point the domain at the distribution. Alias records, so there is no TTL to wait out and
+# no charge for the lookups. Here rather than in modules/cert for the same reason the
+# certificate is split out: the records need the distribution, the distribution needs the cert.
+resource "aws_route53_record" "site" {
+  for_each = local.domain_name == null ? toset([]) : toset(["A", "AAAA"])
+
+  zone_id = local.zone_id
+  name    = local.domain_name
+  type    = each.value
+
+  alias {
+    name                   = module.site.domain_name
+    zone_id                = module.site.hosted_zone_id
+    evaluate_target_health = false
+  }
 }

@@ -12,6 +12,11 @@ dist/
 # OpenTofu / Terraform
 .terraform/
 .build/
+
+# Account-, repo- and domain-specific config. Templates are committed as *.example.
+*.auto.tfvars
+terraform.tfvars
+backend.hcl
 .terraform.lock.hcl.bak
 *.tfstate
 *.tfstate.*

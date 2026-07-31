@@ -1,0 +1,5 @@
+# Copy to bootstrap.auto.tfvars (untracked). Must match envs/prod/backend.hcl.
+# Pick a name that doesn't encode your account id — a random suffix is fine and is not a secret,
+# just one less free fact about the account.
+
+state_bucket = "daily-compile-tofu-state-CHANGEME"

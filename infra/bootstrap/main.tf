@@ -26,9 +26,13 @@ variable "region" {
 }
 
 variable "state_bucket" {
-  description = "Globally unique name for the OpenTofu state bucket."
+  description = <<-EOT
+    Globally unique name for the OpenTofu state bucket. No default: bucket names are public
+    namespace, so pick one that doesn't advertise the account — a random suffix beats the
+    account id. Pass it with -var or an untracked tfvars file, and use the same value in
+    envs/prod/backend.hcl.
+  EOT
   type        = string
-  default     = "daily-compile-tofu-state-962765734576"
 }
 
 resource "aws_s3_bucket" "state" {

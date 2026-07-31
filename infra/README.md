@@ -11,11 +11,31 @@ modules/ci     GitHub OIDC roles + the pipeline IAM user
 envs/prod      wires them together; holds the bucket policy and the Lambda invoke grant
 ```
 
+## Local configuration (not committed)
+
+Nothing in this repo names an account, a repo or a domain. Three untracked files supply those:
+
+| File | Copy from | Holds |
+|---|---|---|
+| `bootstrap/bootstrap.auto.tfvars` | `.example` | the state bucket name |
+| `envs/prod/backend.hcl` | `.example` | the same bucket + its region, for `tofu init` |
+| `envs/prod/prod.auto.tfvars` | `.example` | state bucket, `owner/repo`, and the optional domain |
+
+CI supplies the same values from repository variables and `github.repository`, so the workflows
+need no checked-in config either.
+
 ## First apply
 
 ```bash
-cd infra/bootstrap && tofu init && tofu apply     # creates the state bucket
-cd ../envs/prod    && tofu init && tofu apply     # ~25 resources, a few minutes for CloudFront
+cd infra/bootstrap
+cp bootstrap.auto.tfvars.example bootstrap.auto.tfvars   # then edit
+tofu init && tofu apply                                  # creates the state bucket
+
+cd ../envs/prod
+cp backend.hcl.example backend.hcl                       # then edit
+cp prod.auto.tfvars.example prod.auto.tfvars             # then edit
+tofu init -backend-config=backend.hcl
+tofu apply                                               # ~30 resources; CloudFront takes a few minutes
 ```
 
 Then, once:
@@ -48,12 +68,19 @@ Set these repository **variables** (not secrets — they are ARNs, not credentia
 | `AWS_TOFU_PLAN_ROLE_ARN` | `tofu output -raw tofu_plan_role_arn` |
 | `SITE_BUCKET` | `tofu output -raw bucket_name` |
 | `CLOUDFRONT_DISTRIBUTION_ID` | `tofu output -raw distribution_id` |
+| `TF_STATE_BUCKET` | the bucket in `backend.hcl` |
+| `SITE_DOMAIN` | your domain, or leave unset for the CloudFront domain |
+| `ROUTE53_ZONE_ID` | the zone holding that domain; unset if `SITE_DOMAIN` is unset |
+
+`github_repo` is not a variable — the infra workflow passes `github.repository`.
 
 ## Notes
 
-- **No custom domain by default.** `var.aliases` is empty and the distribution uses the
-  CloudFront certificate. To add one: create an ACM certificate in **us-east-1**, then set
-  `aliases` and `acm_certificate_arn`.
+- **Custom domain is opt-in and free.** Set `domain_name` + `route53_zone_id` and the stack mints
+  a DNS-validated ACM certificate, waits for validation, and points A/AAAA alias records at the
+  distribution. Leave them unset and the site lives on the CloudFront domain. Certificates are
+  free; alias queries to a CloudFront target are not billed. `acm_certificate_arn` reuses a
+  certificate you already own instead of creating one.
 - **Both buckets refuse to be destroyed** (`prevent_destroy`). Editions are one-shot model
   output and feedback is a personal history; neither is reproducible.
 - **Caching is split on purpose.** `index.json` and `config.json` are 60s; dated editions are
