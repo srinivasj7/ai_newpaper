@@ -144,30 +144,27 @@ resource "aws_cloudfront_distribution" "site" {
   }
 
   ordered_cache_behavior {
-    path_pattern             = "/api/*"
-    target_origin_id         = local.api_origin
-    viewer_protocol_policy   = "https-only"
-    allowed_methods          = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
-    cached_methods           = ["GET", "HEAD"]
-    compress                 = true
+    path_pattern           = "/api/*"
+    target_origin_id       = local.api_origin
+    viewer_protocol_policy = "https-only"
+    allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    cached_methods         = ["GET", "HEAD"]
+
+    # Not compressed on purpose: CloudFront rewrites Accept-Encoding when it compresses, and
+    # on an OAC-signed Lambda origin that happens after signing — the origin then rejects the
+    # request as Forbidden. The responses here are a few dozen bytes of JSON regardless.
+    compress = false
+
     cache_policy_id          = data.aws_cloudfront_cache_policy.disabled.id
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
   }
 
-  # SPA fallback: any unknown path is a client route, not a missing file.
-  custom_error_response {
-    error_code            = 403
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 10
-  }
-
-  custom_error_response {
-    error_code            = 404
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 10
-  }
+  # No custom_error_response on purpose. Custom error responses are distribution-wide, so a
+  # blanket 403/404 -> /index.html rule would also swallow a failed /api/* call and a missing
+  # edition under /data/*, turning both into a 200 of HTML — which is exactly how a broken API
+  # first hid here. The app keeps all its state in memory and has no deep links, so there is
+  # nothing for an SPA fallback to rescue. If client-side routing is ever added, do it with a
+  # CloudFront Function on the default behaviour only, not with error responses.
 
   restrictions {
     geo_restriction {

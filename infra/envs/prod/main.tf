@@ -168,15 +168,26 @@ resource "aws_s3_bucket_policy" "app" {
   policy = data.aws_iam_policy_document.bucket.json
 }
 
-# The Function URL is IAM-authed; this is the single grant that lets the distribution
-# sign requests to it. Without it, /api/* returns 403 — which is the point.
-resource "aws_lambda_permission" "cloudfront" {
+# The Function URL is IAM-authed; these are the grants that let the distribution reach it.
+# Both are required — with only InvokeFunctionUrl the function URL answers every request with
+# "Forbidden" and the function is never invoked at all.
+resource "aws_lambda_permission" "cloudfront_invoke_url" {
   statement_id           = "AllowCloudFrontInvokeFunctionUrl"
   action                 = "lambda:InvokeFunctionUrl"
   function_name          = module.api.function_name
   principal              = "cloudfront.amazonaws.com"
   source_arn             = module.site.distribution_arn
   function_url_auth_type = "AWS_IAM"
+}
+
+# No function_url_auth_type here: Lambda rejects that condition for anything but
+# lambda:InvokeFunctionUrl.
+resource "aws_lambda_permission" "cloudfront_invoke" {
+  statement_id  = "AllowCloudFrontInvokeFunction"
+  action        = "lambda:InvokeFunction"
+  function_name = module.api.function_name
+  principal     = "cloudfront.amazonaws.com"
+  source_arn    = module.site.distribution_arn
 }
 
 # Point the domain at the distribution. Alias records, so there is no TTL to wait out and

@@ -41,13 +41,25 @@ export function fetchConfig() {
   return getJson(`${DATA}/config/config.json`, { cache: "no-cache" });
 }
 
+/**
+ * CloudFront signs origin requests to the Lambda with SigV4, and Lambda function URLs reject
+ * unsigned payloads — so any request with a body must carry the SHA-256 of that body in
+ * `x-amz-content-sha256`, which CloudFront folds into the signature. Without it the write
+ * comes back 403 "signature we calculated does not match".
+ */
+async function payloadHash(text) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 async function post(path, body) {
-  const send = () =>
-    fetch(`${API}${path}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
+  const payload = JSON.stringify(body);
+  const headers = { "content-type": "application/json" };
+
+  // crypto.subtle exists in every secure context, which includes localhost.
+  if (globalThis.crypto?.subtle) headers["x-amz-content-sha256"] = await payloadHash(payload);
+
+  const send = () => fetch(`${API}${path}`, { method: "POST", headers, body: payload });
 
   let res;
   try {
