@@ -1,0 +1,181 @@
+{
+  "date": "2026-07-17",
+  "edition": 26,
+  "generatedAt": "2026-07-18T01:10:00Z",
+  "pipeline": {
+    "candidates": ["claude-fable-5", "gpt-5.6-terra", "grok-4.5"],
+    "judge": "local-llama-70b"
+  },
+  "lead": {
+    "id": "e26-lead",
+    "topic": "chips",
+    "model": "claude",
+    "judgeScore": 9.1,
+    "sentiment": "bearish",
+    "headline": "Apple reclaims the crown as the chip rout deepens",
+    "dek": "Nvidia cedes the world's-most-valuable title in a second day of AI-fatigue selling; oil tops $80 and rotation favors energy and financials.",
+    "body": [
+      "A broad semiconductor de-rating dragged NVDA, AMD and INTC lower while Apple's steadiness pushed its market cap back to the top near $4.9T. TSMC's record quarter and a capex hike to ~$62B failed to arrest the slide — investors read spend, not strength.",
+      "Energy caught the rotation bid as Middle East supply threats sent crude through $80, lifting XOM and CVX roughly 3%."
+    ],
+    "whyItMatters": "Two straight sessions of selling into good chip news suggests positioning, not fundamentals, is driving the tape. Watch next week's mega-cap earnings for confirmation.",
+    "sources": [
+      { "title": "Why Nvidia sank", "url": "https://www.fool.com/investing/2026/07/17/why-did-nvidia-stock-sink-today/" },
+      { "title": "TSMC Q2 filing", "url": "https://www.sec.gov/Archives/edgar/data/0001046179/000104617926000451/a2q26e_withguidancexfinal.htm" }
+    ]
+  },
+  "stories": [
+    {
+      "id": "e26-s1",
+      "topic": "ai",
+      "model": "gpt",
+      "judgeScore": 8.4,
+      "sentiment": "neutral",
+      "headline": "Palantir leads software lower as AI names de-rate",
+      "dek": "Down ~7% on no company news — a pure multiple-compression move.",
+      "body": [
+        "High-multiple AI software took the brunt of the rotation, with PLTR the standout decliner. Oracle slid separately after its annual report disclosed a ~13% headcount reduction."
+      ],
+      "whyItMatters": "When leaders fall without headlines, it's the crowd leaving, not the story changing.",
+      "sources": [
+        { "title": "Yahoo Finance", "url": "https://finance.yahoo.com/markets/stocks/articles/palantir-down-7-today-underperforming-164011831.html" }
+      ]
+    },
+    {
+      "id": "e26-s2",
+      "topic": "chips",
+      "model": "claude",
+      "judgeScore": 8.9,
+      "sentiment": "bullish",
+      "headline": "Micron bucks the rout on record DRAM pricing",
+      "dek": "MU up ~3.3% while the rest of the complex bleeds.",
+      "body": [
+        "The AI-driven memory shortage keeps rewarding the one part of the chip stack with genuine scarcity pricing. Record DRAM contract prices lifted Micron against a deeply red tape."
+      ],
+      "whyItMatters": "Memory is the tightest link in the AI supply chain — pricing power there is real, not narrative.",
+      "sources": [
+        { "title": "24/7 Wall St", "url": "https://247wallst.com/technology-3/2026/07/17/micron-technology-record-dram-pricing-meets-a-stock-in-retreat/" }
+      ]
+    },
+    {
+      "id": "e26-s3",
+      "topic": "markets",
+      "model": "grok",
+      "judgeScore": 7.8,
+      "sentiment": "bearish",
+      "headline": "Netflix beats, guides soft, drops 7%",
+      "dek": "Q2 beat wasn't enough against elevated expectations.",
+      "body": [
+        "Netflix delivered a Q2 beat but soft Q3 guidance sent shares down roughly 7% — the classic late-cycle pattern of good news priced as insufficient."
+      ],
+      "whyItMatters": "Guidance, not results, is setting prices this earnings season.",
+      "sources": [
+        { "title": "Motley Fool", "url": "https://www.fool.com/investing/2026/07/17/netflix-beat-estimates-but-the-stock-dropped/" }
+      ]
+    },
+    {
+      "id": "e26-s4",
+      "topic": "markets",
+      "model": "claude",
+      "judgeScore": 8.1,
+      "sentiment": "bullish",
+      "headline": "Palo Alto leads security higher on Capital One upgrade",
+      "dek": "Cybersecurity as the defensive corner of tech.",
+      "body": [
+        "PANW rose ~2.5% on an upgrade while most enterprise software drifted lower, extending the pattern of security spending holding up when everything else gets questioned."
+      ],
+      "whyItMatters": "Security budgets are the last thing CIOs cut — the market is treating the sector accordingly.",
+      "sources": [
+        { "title": "Seeking Alpha", "url": "https://seekingalpha.com/news/4614971-palo-alto-leads-security-stocks-up-while-most-enterprise-software-names-inch-down" }
+      ]
+    }
+  ],
+  "stocks": {
+    "updated": "post-close",
+    "picks": [
+      {
+        "ticker": "NVDA", "company": "NVIDIA", "sector": "Semis", "price": 201.60,
+        "scenarios": { "3m": -2, "6m": 3, "12m": 12, "18m": 18, "24m": 22 },
+        "conviction": "med", "sentiment": "bearish",
+        "reason": "Chip rout deepens; NVDA slips ~3.8% and cedes the most-valuable crown to Apple.",
+        "sourceUrl": "https://www.fool.com/investing/2026/07/17/why-did-nvidia-stock-sink-today/"
+      },
+      {
+        "ticker": "TSM", "company": "Taiwan Semiconductor", "sector": "Semis", "price": 398.37,
+        "scenarios": { "3m": 0, "6m": 5, "12m": 14, "18m": 18, "24m": 22 },
+        "conviction": "med", "sentiment": "neutral",
+        "reason": "Record Q2 (+77% net income) and capex hike to ~$62B, but the ADR still falls on AI fatigue.",
+        "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001046179/000104617926000451/a2q26e_withguidancexfinal.htm"
+      },
+      {
+        "ticker": "MU", "company": "Micron Technology", "sector": "Semis", "price": null,
+        "scenarios": { "3m": 4, "6m": 8, "12m": 14, "18m": 15, "24m": 18 },
+        "conviction": "med", "sentiment": "bullish",
+        "reason": "Record DRAM pricing lifts MU ~3.3%, bucking the semiconductor rout.",
+        "sourceUrl": "https://247wallst.com/technology-3/2026/07/17/micron-technology-record-dram-pricing-meets-a-stock-in-retreat/"
+      },
+      {
+        "ticker": "AMD", "company": "Advanced Micro Devices", "sector": "Semis", "price": 477.81,
+        "scenarios": { "3m": -4, "6m": 2, "12m": 10, "18m": 15, "24m": 18 },
+        "conviction": "low", "sentiment": "bearish",
+        "reason": "Among the hardest-hit chips, down ~5% in the semiconductor rotation.",
+        "sourceUrl": "https://247wallst.com/investing/2026/07/17/amd-falls-5-intel-drops-4-nvidia-slides-3-before-recovering-as-rotation-hits-semiconductor-stocks/"
+      },
+      {
+        "ticker": "AAPL", "company": "Apple", "sector": "Hardware", "price": 333.65,
+        "scenarios": { "3m": 2, "6m": 5, "12m": 10, "18m": 12, "24m": 14 },
+        "conviction": "med", "sentiment": "bullish",
+        "reason": "Reclaims the world's-most-valuable title (~$4.91T) as Nvidia slips.",
+        "sourceUrl": "https://www.thestreet.com/stock-market-today/stock-market-today-dow-jones-sp-500-nasdaq-updates-july-17-2026"
+      },
+      {
+        "ticker": "GOOGL", "company": "Alphabet", "sector": "Hyperscale", "price": 354.46,
+        "scenarios": { "3m": 1, "6m": 5, "12m": 12, "18m": 16, "24m": 18 },
+        "conviction": "med", "sentiment": "neutral",
+        "reason": "Drops with the comms sector; Q2 earnings due July 22.",
+        "sourceUrl": "https://www.interactivecrypto.com/spy-edges-lower-as-tech-stocks-falter-amid-sector-rotation-to-healthcare-and-financials-on-july"
+      },
+      {
+        "ticker": "AMZN", "company": "Amazon.com", "sector": "Hyperscale", "price": 256.87,
+        "scenarios": { "3m": 2, "6m": 6, "12m": 12, "18m": 16, "24m": 18 },
+        "conviction": "med", "sentiment": "neutral",
+        "reason": "Edges up ~0.75%, resisting the broad tech decline.",
+        "sourceUrl": "https://www.thestreet.com/stock-market-today/stock-market-today-dow-jones-sp-500-nasdaq-updates-july-17-2026"
+      },
+      {
+        "ticker": "PLTR", "company": "Palantir Technologies", "sector": "Software", "price": null,
+        "scenarios": { "3m": -6, "6m": -2, "12m": 6, "18m": 8, "24m": 10 },
+        "conviction": "low", "sentiment": "bearish",
+        "reason": "Leads software lower, down ~7% as AI names de-rate.",
+        "sourceUrl": "https://finance.yahoo.com/markets/stocks/articles/palantir-down-7-today-underperforming-164011831.html"
+      },
+      {
+        "ticker": "NFLX", "company": "Netflix", "sector": "Media", "price": 68.95,
+        "scenarios": { "3m": -2, "6m": 3, "12m": 9, "18m": 12, "24m": 14 },
+        "conviction": "low", "sentiment": "bearish",
+        "reason": "Sinks ~7% despite a Q2 beat on soft Q3 guidance.",
+        "sourceUrl": "https://www.fool.com/investing/2026/07/17/netflix-beat-estimates-but-the-stock-dropped/"
+      },
+      {
+        "ticker": "XOM", "company": "ExxonMobil", "sector": "Energy", "price": 141.62,
+        "scenarios": { "3m": 3, "6m": 3, "12m": 5, "18m": 6, "24m": 7 },
+        "conviction": "med", "sentiment": "bullish",
+        "reason": "Jumps ~3.3% as oil tops $80 on Middle East supply threats.",
+        "sourceUrl": "https://stockstory.org/us/stocks/nyse/xom/news/why-up-down/exxonmobil-and-chevron-shares-skyrocket-what-you-need-to-know"
+      }
+    ]
+  },
+  "options": {
+    "updated": "post-close",
+    "ideas": [
+      { "ticker": "NVDA", "company": "NVIDIA", "strategy": "LEAPS Call", "tag": "aggressive", "direction": "bull", "dte": 365, "spot": 201.60, "framing": "~$225 (+12%, near 12m mid)", "maxLoss": "$2,500", "aggressiveCase": "~+248%", "probability": "low-med" },
+      { "ticker": "NVDA", "company": "NVIDIA", "strategy": "Bull Call Spread", "tag": "defined risk", "direction": "bull", "dte": 180, "spot": 201.60, "framing": "205 / 265", "maxLoss": "$1,800", "aggressiveCase": "~+233%", "probability": "med" },
+      { "ticker": "TSM", "company": "Taiwan Semi", "strategy": "LEAPS Call", "tag": "aggressive", "direction": "bull", "dte": 365, "spot": 398.37, "framing": "~$455 (+14%, near 12m mid)", "maxLoss": "$4,200", "aggressiveCase": "~+221%", "probability": "low-med" },
+      { "ticker": "AMD", "company": "Advanced Micro Devices", "strategy": "Bear Put Spread", "tag": "defined risk", "direction": "bear", "dte": 120, "spot": 477.81, "framing": "392 / 335", "maxLoss": "$1,800", "aggressiveCase": "~+217%", "probability": "low-med" },
+      { "ticker": "AAPL", "company": "Apple", "strategy": "Cash-Secured Put", "tag": "income/entry", "direction": "bull", "dte": 120, "spot": 333.65, "framing": "$307 (-8%)", "maxLoss": "assignment risk", "aggressiveCase": "keep $12/sh credit", "probability": "med-high" },
+      { "ticker": "GOOGL", "company": "Alphabet", "strategy": "Long Straddle", "tag": "volatility", "direction": "vol", "dte": 45, "spot": 354.46, "framing": "$355 call + $355 put (ATM)", "maxLoss": "$5,000", "aggressiveCase": "~+218%", "probability": "low" },
+      { "ticker": "NFLX", "company": "Netflix", "strategy": "Bear Put Spread", "tag": "defined risk", "direction": "bear", "dte": 120, "spot": 68.95, "framing": "59 / 54", "maxLoss": "$160", "aggressiveCase": "~+213%", "probability": "low-med" },
+      { "ticker": "XOM", "company": "ExxonMobil", "strategy": "Bull Call Spread", "tag": "defined risk", "direction": "bull", "dte": 180, "spot": 141.62, "framing": "142 / 170", "maxLoss": "$800", "aggressiveCase": "~+250%", "probability": "med" }
+    ]
+  }
+}
