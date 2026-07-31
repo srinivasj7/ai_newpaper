@@ -39,6 +39,27 @@ resource "aws_iam_openid_connect_provider" "github" {
   ]
 }
 
+/*
+ * GitHub is migrating the OIDC subject claim to an "immutable" form that embeds the numeric
+ * owner and repository ids:
+ *
+ *   classic    repo:owner/repo:pull_request
+ *   immutable  repo:owner@1234567/repo@89012345:pull_request
+ *
+ * A repository can emit either, so both shapes are accepted. Only the numeric ids are
+ * wildcarded — the owner and repository names stay pinned, and so does the trailing claim
+ * that distinguishes a push to the default branch from a pull request.
+ */
+locals {
+  owner = split("/", var.github_repo)[0]
+  repo  = split("/", var.github_repo)[1]
+
+  subject_patterns = {
+    main         = ["repo:${var.github_repo}:ref:refs/heads/${var.default_branch}", "repo:${local.owner}@*/${local.repo}@*:ref:refs/heads/${var.default_branch}"]
+    pull_request = ["repo:${var.github_repo}:pull_request", "repo:${local.owner}@*/${local.repo}@*:pull_request"]
+  }
+}
+
 data "aws_iam_policy_document" "github_main" {
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
@@ -55,9 +76,9 @@ data "aws_iam_policy_document" "github_main" {
     }
 
     condition {
-      test     = "StringEquals"
+      test     = "StringLike"
       variable = "${local.oidc_host}:sub"
-      values   = ["repo:${var.github_repo}:ref:refs/heads/${var.default_branch}"]
+      values   = local.subject_patterns.main
     }
   }
 }
@@ -78,9 +99,9 @@ data "aws_iam_policy_document" "github_pr" {
     }
 
     condition {
-      test     = "StringEquals"
+      test     = "StringLike"
       variable = "${local.oidc_host}:sub"
-      values   = ["repo:${var.github_repo}:pull_request"]
+      values   = local.subject_patterns.pull_request
     }
   }
 }
