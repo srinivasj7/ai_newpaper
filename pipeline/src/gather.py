@@ -10,6 +10,7 @@ never fetched, preferred domains are kept first when the pool is trimmed.
 from __future__ import annotations
 
 import logging
+import os
 import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
@@ -25,6 +26,15 @@ log = logging.getLogger("gather")
 USER_AGENT = "DailyCompile/1.0 (personal news brief; contact via site)"
 TIMEOUT = httpx.Timeout(15.0, connect=8.0)
 
+# The SEC rejects generic agents and asks for a contact address. Its filings are the single
+# most citable source here, so it is worth honouring exactly.
+SEC_USER_AGENT = os.getenv("SEC_USER_AGENT", "DailyCompile personal-brief admin@example.com")
+
+# No single feed may dominate the pool. arXiv alone returns hundreds of items a day; without a
+# cap it would crowd out every regulator and newsroom on the list and the brief would be a
+# preprint digest. The cap is what keeps a mixed pool mixed.
+MAX_PER_DOMAIN = 12
+
 # Feed paths worth trying when a domain publishes no discoverable <link rel="alternate">.
 COMMON_PATHS = ("/feed", "/rss", "/feed/", "/rss.xml", "/index.xml", "/atom.xml", "/feeds/all.atom.xml")
 
@@ -35,26 +45,58 @@ COMMON_PATHS = ("/feed", "/rss", "/feed/", "/rss.xml", "/index.xml", "/atom.xml"
 # the publisher — the brief would cite news.google.com for everything, trust tiers would all
 # collapse to one domain, and the reader could not check a claim against its source. An outlet
 # we cannot deep-link is reported as unavailable instead.
+# Every entry below was fetched and checked before being listed: it returns items, the items
+# are recent, and the links point at the publisher rather than at a redirect. Where a domain
+# lists several feeds, all of them are fetched and the result is capped per domain.
 KNOWN_FEEDS: dict[str, tuple[str, ...]] = {
-    "wsj.com": ("https://feeds.a.dj.com/rss/RSSMarketsMain.xml", "https://feeds.a.dj.com/rss/RSSWSJD.xml"),
-    "ft.com": ("https://www.ft.com/rss/home",),
+    # Primary sources — the issuer publishing its own facts, with no editorial layer.
+    "sec.gov": ("https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&count=40&output=atom",),
+    "federalreserve.gov": ("https://www.federalreserve.gov/feeds/press_all.xml",),
+    "bls.gov": ("https://www.bls.gov/feed/bls_latest.rss",),
+    "justice.gov": ("https://www.justice.gov/news/rss?type=press_release",),
+    "ftc.gov": ("https://www.ftc.gov/feeds/press-release.xml",),
+    "cftc.gov": ("https://www.cftc.gov/RSS/RSSGP/rssgp.xml",),
+    "ecb.europa.eu": ("https://www.ecb.europa.eu/rss/press.html",),
+    "bankofengland.co.uk": ("https://www.bankofengland.co.uk/rss/news",),
+    "esma.europa.eu": ("https://www.esma.europa.eu/rss.xml",),
+    "nist.gov": ("https://www.nist.gov/news-events/news/rss.xml",),
+
+    # Open research and open source.
+    "arxiv.org": ("http://export.arxiv.org/rss/cs.AI", "http://export.arxiv.org/rss/cs.LG"),
+    "lwn.net": ("https://lwn.net/headlines/rss",),
+    "phoronix.com": ("https://www.phoronix.com/rss.php",),
+
+    # Public-service and non-profit newsrooms: free to read, not ad-driven.
+    "bbc.co.uk": ("https://feeds.bbci.co.uk/news/business/rss.xml", "https://feeds.bbci.co.uk/news/technology/rss.xml"),
+    "npr.org": ("https://feeds.npr.org/1006/rss.xml",),
+    "propublica.org": ("https://www.propublica.org/feeds/propublica/main",),
+
+    # First-party engineering and product announcements — useful as a source of record, and
+    # promotional by nature, which is why the config trusts them at `allowed` rather than
+    # `preferred`.
+    "openai.com": ("https://openai.com/news/rss.xml",),
+    "deepmind.google": ("https://deepmind.google/blog/rss.xml",),
+    "blogs.nvidia.com": ("https://blogs.nvidia.com/feed/",),
+    "blog.google": ("https://blog.google/rss/",),
+    "blog.cloudflare.com": ("https://blog.cloudflare.com/rss/",),
+    "engineering.fb.com": ("https://engineering.fb.com/feed/",),
+    "aws.amazon.com": ("https://aws.amazon.com/blogs/aws/feed/",),
+    "github.blog": ("https://github.blog/feed/",),
+
+    # Independent technical press with free feeds.
+    "arstechnica.com": ("https://feeds.arstechnica.com/arstechnica/index",),
+    "theregister.com": ("https://www.theregister.com/headlines.atom",),
+    "techcrunch.com": ("https://techcrunch.com/feed/",),
+    "theverge.com": ("https://www.theverge.com/rss/index.xml",),
+    "semiengineering.com": ("https://semiengineering.com/feed/",),
+    "wired.com": ("https://www.wired.com/feed/rss",),
+
+    # Ad-funded market press. Free and factual on price action; kept at `allowed`.
     "cnbc.com": (
         "https://www.cnbc.com/id/100003114/device/rss/rss.html",
         "https://www.cnbc.com/id/19854910/device/rss/rss.html",
     ),
     "marketwatch.com": ("https://feeds.content.dowjones.io/public/rss/mw_topstories",),
-    "finance.yahoo.com": ("https://finance.yahoo.com/news/rssindex",),
-    "techcrunch.com": ("https://techcrunch.com/feed/",),
-    "arstechnica.com": ("https://feeds.arstechnica.com/arstechnica/index",),
-    "theverge.com": ("https://www.theverge.com/rss/index.xml",),
-    "wired.com": ("https://www.wired.com/feed/rss",),
-    "theregister.com": ("https://www.theregister.com/headlines.atom",),
-    "sec.gov": ("https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&count=40&output=atom",),
-    "anthropic.com": ("https://www.anthropic.com/news/rss.xml",),
-    "openai.com": ("https://openai.com/news/rss.xml",),
-    "deepmind.google": ("https://deepmind.google/blog/rss.xml",),
-    "github.blog": ("https://github.blog/feed/",),
-    "arxiv.org": ("http://export.arxiv.org/rss/cs.AI",),
 }
 
 # Domains that only ever yield redirect tokens or syndication stubs. Items pointing at these
@@ -109,15 +151,25 @@ def discover_feeds(client: httpx.Client, domain: str) -> list[str]:
 
 
 def fetch_domain(client: httpx.Client, domain: str, trust: str, cutoff: datetime) -> list[Headline]:
+    """Fetch one source.
+
+    A vetted domain has every one of its listed feeds read, because they cover different desks.
+    An unvetted one is probed until something answers, then left alone.
+    """
+    vetted = domain in KNOWN_FEEDS
+    headers = {"User-Agent": SEC_USER_AGENT} if domain.endswith("sec.gov") else None
     items: list[Headline] = []
+    reachable = False  # did any feed parse at all, regardless of how recent its entries were
+
     for feed_url in discover_feeds(client, domain):
         try:
-            res = client.get(feed_url, follow_redirects=True)
+            res = client.get(feed_url, follow_redirects=True, headers=headers)
             if res.status_code != 200 or not res.content:
                 continue
             parsed = feedparser.parse(res.content)
             if not parsed.entries:
                 continue
+            reachable = True
 
             for entry in parsed.entries:
                 link = entry.get("link") or ""
@@ -137,17 +189,28 @@ def fetch_domain(client: httpx.Client, domain: str, trust: str, cutoff: datetime
                         trust=trust,
                     )
                 )
-            if items:
-                log.info("%-24s %2d items from %s", domain, len(items), feed_url)
+            # A probed domain stops at the first feed that answers; a vetted one reads them all,
+            # since its entries were chosen to cover different desks.
+            if items and not vetted:
                 break
         except Exception as e:
             log.debug("feed failed %s: %s", feed_url, e)
 
     if not items:
-        # Said plainly because it is an editorial fact, not a glitch: some outlets publish no
-        # public feed, so the brief cannot cite them however highly the config trusts them.
-        log.warning("%-24s no public feed — this source cannot be cited", domain)
-    return items
+        if reachable:
+            # A regulator that published nothing today is working exactly as intended. Saying
+            # otherwise would push a reader to prune a good source from the config.
+            log.info("%-24s  0 items — feed is fine, nothing published in the window", domain)
+        else:
+            # An editorial fact, not a glitch: some outlets publish no public feed at all, so
+            # the brief cannot cite them however highly the config trusts them.
+            log.warning("%-24s no public feed — this source cannot be cited", domain)
+        return items
+
+    items.sort(key=lambda h: h.published or "", reverse=True)
+    capped = items[:MAX_PER_DOMAIN]
+    log.info("%-24s %2d items%s", domain, len(capped), f" (of {len(items)})" if len(items) > len(capped) else "")
+    return capped
 
 
 def fetch_hacker_news(client: httpx.Client, trust: str, cutoff: datetime) -> list[Headline]:

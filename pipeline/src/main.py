@@ -242,7 +242,10 @@ def main(argv: list[str] | None = None) -> int:
         log.error("the winning edition has no publishable stories")
         return 5
 
-    edition.edition = (max((e.edition for e in manifest), default=0) + 1) if manifest or store else 1
+    # Re-running a day republishes that day's paper; it does not mint a new one. The edition
+    # number identifies the day, so it is reused when one already exists for this date.
+    existing = next((e.edition for e in manifest if e.date == edition.date), None)
+    edition.edition = existing or (max((e.edition for e in manifest), default=0) + 1)
     edition.pipeline.candidates = [cid for cid, _ in results]
     edition.pipeline.judge = providers.judge.get("model") if judge_adapter else "pass-through"
     assign_ids(edition)
@@ -268,12 +271,12 @@ def main(argv: list[str] | None = None) -> int:
     if store is None:
         log.info("no store configured (dry run with a local config) — nothing published")
     else:
-        store.put_edition(edition)
+        edition_key = store.put_edition(edition)
         entries = [e for e in manifest if e.date != edition.date]
         entries.append(summarize(edition))
         entries.sort(key=lambda e: e.date, reverse=True)
-        store.put_manifest(entries)
-        store.invalidate_manifest()
+        manifest_key = store.put_manifest(entries)
+        store.invalidate(manifest_key, edition_key)
 
     log.info("done in %.1fs", (datetime.now(timezone.utc) - started).total_seconds())
     return 0

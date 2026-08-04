@@ -124,12 +124,19 @@ class Store:
         )
         log.info("wrote s3://%s/%s", self.s.bucket, key)
 
-    def invalidate_manifest(self) -> None:
-        """Only the manifest needs invalidating — dated editions are new keys every time."""
+    def invalidate(self, *keys: str) -> None:
+        """Clear the CDN for the keys just written.
+
+        Dated editions are served with a one-year immutable cache because their content is
+        normally written once. "Normally" is doing real work there: re-running a day
+        overwrites that key, and without an invalidation the site would keep serving the
+        superseded edition for a year. Invalidating what we wrote costs a couple of paths a
+        day against a free allowance of a thousand a month.
+        """
         if self.s.dry_run or not self.s.distribution_id:
             log.info("skipping CloudFront invalidation (dry-run or no distribution id)")
             return
-        paths = ["/" + self._key("editions", "index.json")]
+        paths = ["/" + key for key in keys]
         self.cf.create_invalidation(
             DistributionId=self.s.distribution_id,
             InvalidationBatch={
