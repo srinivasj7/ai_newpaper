@@ -81,3 +81,61 @@ variable "price_class" {
   type        = string
   default     = "PriceClass_100"
 }
+
+# ------------------------------------------------------------------ scheduled pipeline
+# All optional. Without claude_token_parameter the runner is not created at all and the
+# paper is published from wherever you run the pipeline by hand.
+
+variable "claude_token_parameter" {
+  description = "Name of the SecureString parameter holding the writer's long-lived token, e.g. /daily-compile/claude-oauth-token. null disables the scheduled runner."
+  type        = string
+  default     = null
+}
+
+variable "runner_image_tag" {
+  description = "Image tag the scheduled task runs."
+  type        = string
+  default     = "latest"
+}
+
+variable "runner_schedule" {
+  description = "When the paper is written."
+  type        = string
+  default     = "cron(15 6 * * ? *)"
+}
+
+variable "runner_timezone" {
+  description = "Timezone for runner_schedule."
+  type        = string
+  default     = "America/Los_Angeles"
+}
+
+variable "runner_schedule_enabled" {
+  description = "false keeps the task runnable by hand without firing daily."
+  type        = bool
+  default     = true
+}
+
+variable "runner_vpc_id" {
+  description = "Override the default VPC for the task."
+  type        = string
+  default     = null
+}
+
+variable "runner_subnet_ids" {
+  description = "Override the public subnets for the task. Must be public: a private subnet needs a NAT gateway."
+  type        = list(string)
+  default     = []
+}
+
+variable "sec_user_agent" {
+  description = "Contact string sent to SEC EDGAR, which rejects generic user agents."
+  type        = string
+  default     = "DailyCompile personal-brief admin@example.com"
+}
+
+variable "alert_email" {
+  description = "Address notified when a scheduled run fails. Without it, a failure is indistinguishable from a quiet news day."
+  type        = string
+  default     = null
+}

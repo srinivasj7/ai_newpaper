@@ -7,7 +7,9 @@ OpenTofu. Two roots: `bootstrap/` (state bucket, local state, applied once) and 
 modules/data   one private versioned bucket — site/ and data/ prefixes, lifecycle rules
 modules/api    the write-path Lambda + Function URL (IAM auth, CloudFront OAC only)
 modules/site   the single CloudFront distribution and its cache behaviours
+modules/cert   DNS-validated certificate for the custom domain
 modules/ci     GitHub OIDC roles + the pipeline IAM user
+modules/runner the pipeline as a scheduled Fargate task (optional)
 envs/prod      wires them together; holds the bucket policy and the Lambda invoke grant
 ```
 
@@ -73,6 +75,36 @@ Set these repository **variables** (not secrets — they are ARNs, not credentia
 | `ROUTE53_ZONE_ID` | the zone holding that domain; unset if `SITE_DOMAIN` is unset |
 
 `github_repo` is not a variable — the infra workflow passes `github.repository`.
+
+## The scheduled runner (optional)
+
+Set `claude_token_parameter` in `prod.auto.tfvars` and the pipeline gets an ECR repository, a
+Fargate task definition, an EventBridge schedule and a failure alarm — roughly $0.16/month for
+a task that runs four minutes a day. Leave it unset and none of it is created.
+
+```hcl
+claude_token_parameter = "/daily-compile/claude-oauth-token"
+alert_email            = "you@example.com"   # a silent failure looks like a quiet news day
+runner_timezone        = "America/Los_Angeles"
+```
+
+After the first apply, push an image and run it once by hand:
+
+```bash
+docker buildx build --platform linux/arm64 -t "$(tofu output -raw runner_repository_url):latest" --push ../../../pipeline
+eval "$(tofu output -raw runner_run_task_command)"
+aws logs tail "$(tofu output -raw runner_log_group)" --follow
+```
+
+Design notes worth keeping:
+
+- **Public subnet, no NAT.** The task talks only outbound. A NAT gateway costs $0.045/hour —
+  about $33/month, roughly two hundred times the compute it would serve. A public IP is billed
+  per hour of use, so a four-minute task costs about a cent a month.
+- **Task role, not keys.** The container receives credentials from its role, so the pipeline
+  IAM user's access key can be deleted once the task works.
+- **No retries.** A failed run means the site serves yesterday's paper, which is the designed
+  behaviour. A retry storm against the model API is worse than a thin news day.
 
 ## Notes
 

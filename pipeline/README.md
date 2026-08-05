@@ -55,7 +55,42 @@ Useful flags: `--date YYYY-MM-DD`, `--no-markets`, `--out FILE`, `--dry-run`.
 | 4 | Fewer candidates succeeded than `min_candidates` |
 | 5 | The winning edition had no publishable stories |
 
-## Scheduling
+## Scheduling on AWS (Fargate)
+
+`infra/modules/runner` runs this as a scheduled Fargate task: no instance to patch, no volume
+to keep, and nothing running between the ~4 minutes a day it takes to write the paper. About
+$0.16/month.
+
+```bash
+# 1. one-time: mint a long-lived token and store it, with no surrounding whitespace
+claude setup-token
+aws ssm put-parameter --name /daily-compile/claude-oauth-token --type SecureString --value "<token>"
+
+# 2. create the runner (set claude_token_parameter in prod.auto.tfvars first)
+cd infra/envs/prod && tofu apply
+
+# 3. build and push the image the task pulls
+aws ecr get-login-password | docker login --username AWS --password-stdin <acct>.dkr.ecr.us-east-1.amazonaws.com
+docker buildx build --platform linux/arm64 -t "$(tofu output -raw runner_repository_url):latest" --push pipeline/
+
+# 4. run it once by hand before trusting the schedule
+eval "$(tofu output -raw runner_run_task_command)"
+aws logs tail "$(tofu output -raw runner_log_group)" --follow
+```
+
+The container gets its AWS credentials from the task role, so `AWS_ACCESS_KEY_ID` and
+`AWS_SECRET_ACCESS_KEY` are not set on Fargate at all — delete the pipeline user's access key
+once this works. The writer's token is injected from Parameter Store at start; it is never in
+the image or the task definition.
+
+Two things that bite:
+
+- **Store the token with no leading or trailing whitespace.** A stray space is sent as part of
+  the bearer token and the run fails with `401 Invalid bearer token` — at 06:15, silently.
+- **The task runs in a public subnet on purpose.** A private subnet needs a NAT gateway at
+  ~$33/month to serve a job that runs four minutes a day.
+
+## Scheduling on your own host
 
 The host owns the schedule; nothing here assumes a particular machine.
 

@@ -49,6 +49,27 @@ provider "aws" {
 
 data "aws_caller_identity" "current" {}
 
+# The task needs somewhere to run. The default VPC's public subnets are the right answer for
+# a job that talks only outbound: no NAT gateway, no private networking to maintain.
+data "aws_vpc" "default" {
+  count   = var.claude_token_parameter == null ? 0 : 1
+  default = true
+}
+
+data "aws_subnets" "runner" {
+  count = var.claude_token_parameter == null ? 0 : 1
+
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default[0].id]
+  }
+
+  filter {
+    name   = "map-public-ip-on-launch"
+    values = ["true"]
+  }
+}
+
 locals {
   bucket_name = coalesce(var.bucket_name, "${var.project}-${data.aws_caller_identity.current.account_id}")
   site_prefix = "site/"
@@ -64,6 +85,9 @@ locals {
   # Create a certificate only when a domain is wanted and one wasn't supplied.
   create_cert     = local.domain_name != null && local.given_cert == null
   certificate_arn = local.create_cert ? module.cert[0].certificate_arn : local.given_cert
+
+  runner_vpc_id     = var.runner_vpc_id != null ? var.runner_vpc_id : try(data.aws_vpc.default[0].id, null)
+  runner_subnet_ids = length(var.runner_subnet_ids) > 0 ? var.runner_subnet_ids : try(data.aws_subnets.runner[0].ids, [])
 }
 
 module "cert" {
@@ -105,6 +129,32 @@ module "site" {
   aliases                     = local.aliases
   acm_certificate_arn         = local.certificate_arn
   price_class                 = var.price_class
+}
+
+# The pipeline host, as a scheduled task rather than a machine. Optional: leave
+# claude_token_parameter unset and the paper is published from wherever you run it by hand.
+module "runner" {
+  source = "../../modules/runner"
+  count  = var.claude_token_parameter == null ? 0 : 1
+
+  name             = var.project
+  bucket_id        = module.data.bucket_id
+  bucket_arn       = module.data.bucket_arn
+  data_prefix      = local.data_prefix
+  distribution_id  = module.site.distribution_id
+  distribution_arn = module.site.distribution_arn
+
+  claude_token_parameter_arn = "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter${var.claude_token_parameter}"
+
+  vpc_id     = local.runner_vpc_id
+  subnet_ids = local.runner_subnet_ids
+
+  image_tag           = var.runner_image_tag
+  schedule_expression = var.runner_schedule
+  schedule_timezone   = var.runner_timezone
+  schedule_enabled    = var.runner_schedule_enabled
+  sec_user_agent      = var.sec_user_agent
+  alert_email         = var.alert_email
 }
 
 module "ci" {
