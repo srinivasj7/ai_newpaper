@@ -36,9 +36,9 @@ jobs:
       run:
         working-directory: infra/envs/prod
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: opentofu/setup-opentofu@v1
+      - uses: opentofu/setup-opentofu@v2
         with:
           tofu_version: ${{ env.TOFU_VERSION }}
 
@@ -58,7 +58,7 @@ jobs:
             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
           echo "$token" | jq -R 'split(".") | .[1] | @base64d | fromjson | {sub, aud, repository, event_name}'
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ github.event_name == 'pull_request' && vars.AWS_TOFU_PLAN_ROLE_ARN || vars.AWS_TOFU_APPLY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
@@ -70,7 +70,7 @@ jobs:
 
       - name: Comment the plan
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const { execSync } = require('node:child_process');
@@ -93,9 +93,9 @@ jobs:
       run:
         working-directory: infra/envs/prod
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: opentofu/setup-opentofu@v1
+      - uses: opentofu/setup-opentofu@v2
         with:
           tofu_version: ${{ env.TOFU_VERSION }}
 
@@ -107,7 +107,7 @@ jobs:
             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
           echo "$token" | jq -R 'split(".") | .[1] | @base64d | fromjson | {sub, aud, environment}'
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_TOFU_APPLY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
