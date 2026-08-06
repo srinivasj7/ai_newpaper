@@ -1,0 +1,88 @@
+name: mobile-ota
+
+# Publish an over-the-air (OTA) web-bundle update for the installed mobile apps. This ships new
+# SPA code/design WITHOUT an app-store resubmission (Apple 3.3.2 / Play policy: JS/asset updates
+# are allowed while the app's primary purpose is unchanged). It does NOT rebuild the native shell.
+#
+# Manual on purpose — bumping the version and pushing to every device is a deliberate act.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver for this OTA bundle (must be strictly newer than the last)."
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: mobile-ota
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: mobile-release
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Require the absolute CloudFront bases
+        run: |
+          test -n "${{ vars.MOBILE_DATA_BASE }}" || { echo "repo var MOBILE_DATA_BASE is required (e.g. https://paper.example.com/data)"; exit 1; }
+          test -n "${{ vars.MOBILE_API_BASE }}"  || { echo "repo var MOBILE_API_BASE is required (e.g. https://paper.example.com/api)"; exit 1; }
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # The bundled app runs at https://localhost, so the bases MUST be absolute here — the
+      # relative defaults in client.js only resolve same-origin behind CloudFront.
+      - name: Build web bundle
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+        env:
+          VITE_DATA_BASE: ${{ vars.MOBILE_DATA_BASE }}
+          VITE_API_BASE: ${{ vars.MOBILE_API_BASE }}
+          VITE_APP_VERSION: ${{ inputs.version }}
+          VITE_SITE_OWNER_URL: ${{ vars.SITE_OWNER_URL }}
+
+      - name: Assert no fixtures leaked into the bundle
+        run: test ! -d frontend/dist/data
+
+      - name: Package bundle + manifest
+        id: pkg
+        run: |
+          VER="${{ inputs.version }}"
+          ( cd frontend/dist && zip -qr "$GITHUB_WORKSPACE/$VER.zip" . )
+          SUM=$(sha256sum "$VER.zip" | cut -d' ' -f1)
+          APP_BASE="${{ vars.MOBILE_DATA_BASE }}"; APP_BASE="${APP_BASE%/data}/app"
+          printf '{"version":"%s","url":"%s/production/%s.zip","checksum":"%s"}\n' \
+            "$VER" "$APP_BASE" "$VER" "$SUM" > latest.json
+          cat latest.json
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # Bundle first (immutable), manifest last (uncached) so a device never reads a manifest that
+      # points at a zip that isn't uploaded yet.
+      - name: Publish
+        run: |
+          VER="${{ inputs.version }}"
+          aws s3 cp "$VER.zip" "s3://${{ vars.SITE_BUCKET }}/app/production/$VER.zip" \
+            --cache-control "public,max-age=31536000,immutable"
+          aws s3 cp latest.json "s3://${{ vars.SITE_BUCKET }}/app/production/latest.json" \
+            --cache-control "no-cache"
+
+      - name: Invalidate the manifest
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/app/production/latest.json"

@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# The web bundle is built from ../frontend and copied in by `cap sync` — never committed here.
+android/app/src/main/assets/public/
+ios/App/App/public/
+
+# Android build artifacts
+android/build/
+android/.gradle/
+android/app/build/
+android/local.properties
+android/.idea/
+android/app/release/
+*.keystore
+*.jks
+
+# iOS build artifacts
+ios/App/Pods/
+ios/App/build/
+ios/App/DerivedData/
+ios/App/App.xcworkspace/xcuserdata/
+ios/App/App.xcodeproj/xcuserdata/
+
+# Signing material — never in the repo
+*.p8
+*.p12
+*.mobileprovision
+AuthKey_*.p8

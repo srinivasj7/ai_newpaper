@@ -1,0 +1,78 @@
+name: mobile-android
+
+# Build a signed Android App Bundle (.aab) for Play. Runs on Linux (Android builds fine off macOS).
+# Manual — a store build is deliberate. Day-to-day dev is easier in Android Studio on your machine.
+#
+# Prerequisites (see mobile/README.md):
+#   - mobile/android generated once via `npx cap add android` and committed
+#   - android/app/build.gradle signingConfig reads the ANDROID_* env vars below
+#   - secrets in the `mobile-release` environment:
+#       ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+#   - repo vars: MOBILE_DATA_BASE, MOBILE_API_BASE (absolute CloudFront bases)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "JS bundle version to bake in (semver, e.g. 1.0.0). OTA bundles must be strictly newer than this — keep it on the same scheme."
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: mobile-release
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Require the absolute CloudFront bases
+        run: |
+          test -n "${{ vars.MOBILE_DATA_BASE }}" || { echo "repo var MOBILE_DATA_BASE is required"; exit 1; }
+          test -n "${{ vars.MOBILE_API_BASE }}"  || { echo "repo var MOBILE_API_BASE is required"; exit 1; }
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Build web bundle
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+        env:
+          VITE_DATA_BASE: ${{ vars.MOBILE_DATA_BASE }}
+          VITE_API_BASE: ${{ vars.MOBILE_API_BASE }}
+          VITE_APP_VERSION: ${{ inputs.version }}
+          VITE_SITE_OWNER_URL: ${{ vars.SITE_OWNER_URL }}
+
+      - name: Capacitor sync
+        working-directory: mobile
+        run: |
+          npm install
+          npx cap sync android
+
+      - name: Decode upload keystore
+        working-directory: mobile/android/app
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+
+      - name: Build release bundle
+        working-directory: mobile/android
+        run: ./gradlew bundleRelease
+        env:
+          ANDROID_KEYSTORE_FILE: release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: app-release-aab
+          path: mobile/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 7

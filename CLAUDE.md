@@ -153,5 +153,6 @@ pipeline takes the **latest event per storyId** when aggregating.
   touch the filesystem or network.
 - Keep the financial disclaimers exactly as written (footer + per-table notes). No advice framing.
 - Respect source trust tiers; cite deep links; summaries stay short — never reproduce articles.
-- v1 non-goals: auth/multi-user, comments, realtime anything, mobile app.
+- v1 non-goals: auth/multi-user, comments, realtime anything. (A Capacitor iOS/Android wrapper that
+  bundles the web build and updates over-the-air now lives in `mobile/` — see mobile/README.md.)
 - Preferences: OpenTofu (not Terraform-branded), "infrastructure" framing, markdown only.

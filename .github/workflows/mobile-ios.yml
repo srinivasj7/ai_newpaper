@@ -1,0 +1,92 @@
+name: mobile-ios
+
+# Build a signed iOS archive on a GitHub-hosted macOS runner (iOS cannot be built on Windows).
+# Manual — a store build is deliberate. Signing uses an App Store Connect API key (.p8), the
+# least secret material to manage; automatic provisioning fetches the profile at build time.
+#
+# Prerequisites (see mobile/README.md):
+#   - mobile/ios generated once via `npx cap add ios` and committed
+#   - mobile/ios/App/ExportOptions.plist committed (method: app-store-connect, your team id)
+#   - secrets in the `mobile-release` environment:
+#       ASC_API_KEY_P8 (base64 of the .p8), ASC_API_KEY_ID, ASC_API_KEY_ISSUER_ID
+#   - repo vars: MOBILE_DATA_BASE, MOBILE_API_BASE (absolute CloudFront bases)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "JS bundle version to bake in (semver, e.g. 1.0.0). OTA bundles must be strictly newer than this — keep it on the same scheme."
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-14
+    environment: mobile-release
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Require the absolute CloudFront bases
+        run: |
+          test -n "${{ vars.MOBILE_DATA_BASE }}" || { echo "repo var MOBILE_DATA_BASE is required"; exit 1; }
+          test -n "${{ vars.MOBILE_API_BASE }}"  || { echo "repo var MOBILE_API_BASE is required"; exit 1; }
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Build web bundle
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+        env:
+          VITE_DATA_BASE: ${{ vars.MOBILE_DATA_BASE }}
+          VITE_API_BASE: ${{ vars.MOBILE_API_BASE }}
+          VITE_APP_VERSION: ${{ inputs.version }}
+          VITE_SITE_OWNER_URL: ${{ vars.SITE_OWNER_URL }}
+
+      - name: Capacitor sync
+        working-directory: mobile
+        run: |
+          npm install
+          npx cap sync ios
+
+      - name: CocoaPods
+        working-directory: mobile/ios/App
+        run: pod install
+
+      - name: Import App Store Connect API key
+        run: |
+          mkdir -p ~/private_keys
+          echo "${{ secrets.ASC_API_KEY_P8 }}" | base64 -d > "$HOME/private_keys/AuthKey_${{ secrets.ASC_API_KEY_ID }}.p8"
+
+      - name: Archive
+        working-directory: mobile/ios/App
+        run: |
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" archive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_${{ secrets.ASC_API_KEY_ID }}.p8" \
+            -authenticationKeyID "${{ secrets.ASC_API_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_API_KEY_ISSUER_ID }}"
+
+      - name: Export IPA
+        working-directory: mobile/ios/App
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist ExportOptions.plist \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_${{ secrets.ASC_API_KEY_ID }}.p8" \
+            -authenticationKeyID "${{ secrets.ASC_API_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_API_KEY_ISSUER_ID }}"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: app-ios-ipa
+          path: ${{ runner.temp }}/export/*.ipa
+          retention-days: 7

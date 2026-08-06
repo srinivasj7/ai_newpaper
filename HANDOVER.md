@@ -299,5 +299,5 @@ Host schedules `docker compose run --rm pipeline` (cron or systemd timer — doc
 - CLI writers run headless with tools disabled — they generate JSON, they do not touch the filesystem or network beyond their own API.
 - Financial content is display of AI-generated research: keep the disclaimers exactly as in the prototype (footer + per-table notes). No advice framing anywhere.
 - Respect source trust tiers; cite deep links; summaries stay short — no article reproduction.
-- Non-goals for v1: auth/multi-user, comments, mobile app (React-Native-friendly structure is enough), realtime anything, Claude Code Routines (revisit later only as an ops watchdog: "verify last night's edition exists; else open a GitHub issue").
+- Non-goals for v1: auth/multi-user, comments, realtime anything, Claude Code Routines (revisit later only as an ops watchdog: "verify last night's edition exists; else open a GitHub issue"). (A mobile app is no longer a non-goal: a Capacitor wrapper that bundles the web build and updates over-the-air lives in `mobile/` — see mobile/README.md. It adds CORS on `/data/*` and `/api/*` scoped to the app's `https://localhost` origin.)
 - Preferences: OpenTofu (not Terraform-branded), "infrastructure" framing in docs, no Word docs — markdown only.
