@@ -1,0 +1,97 @@
+name: security-scan
+
+# Covers what CodeQL cannot: infrastructure-as-code and the container image.
+#
+# CodeQL has no analyzer for HCL or Dockerfiles, so the OpenTofu configuration — which is where
+# a mistake exposes a bucket or over-grants a role — would otherwise be unscanned. Trivy is
+# open source and free; results are uploaded as SARIF so they appear alongside CodeQL alerts in
+# the Security tab rather than being buried in a job log.
+
+on:
+  push:
+    branches: [main]
+    paths: ["infra/**", "pipeline/**", ".github/workflows/security-scan.yml"]
+  pull_request:
+    paths: ["infra/**", "pipeline/**"]
+  schedule:
+    - cron: "43 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  iac:
+    name: infrastructure
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Scan the OpenTofu configuration
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: config
+          scan-ref: infra
+          format: sarif
+          output: trivy-infra.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+          exit-code: "0" # report, never block a merge on a finding
+
+      - uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-infra.sarif
+          category: trivy-infra
+
+  image:
+    name: container image
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      # Builds for the host architecture only — this is a vulnerability scan of the layers,
+      # not the release build, so emulating arm64 would only make it slower.
+      - name: Build the pipeline image
+        run: docker build -t pipeline-scan:ci pipeline
+
+      - name: Scan it
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: pipeline-scan:ci
+          format: sarif
+          output: trivy-image.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true # a finding with no available patch is not actionable here
+          exit-code: "0"
+
+      - uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
+
+  dependency-review:
+    name: dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # Blocks a pull request that *introduces* a known-vulnerable dependency, which is the one
+      # case worth failing on: it is cheap to fix before merge and tedious afterwards.
+      - uses: actions/dependency-review-action@v5
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure

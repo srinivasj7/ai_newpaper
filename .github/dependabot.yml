@@ -1,0 +1,63 @@
+# Dependency version updates. Security *alerts* and security-only updates are repository
+# settings and already on; this file is what makes Dependabot also propose routine upgrades.
+#
+# Grouped and weekly on purpose: this is a one-person project, and a stream of individual
+# bumps is noise that gets ignored, which is worse than no automation at all.
+
+version: 2
+
+updates:
+  # The SPA. Lockfile is committed, so updates are reproducible.
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      react:
+        patterns: ["react", "react-dom"]
+      build-tooling:
+        patterns: ["vite", "@vitejs/*"]
+
+  # The pipeline's Python dependencies.
+  - package-ecosystem: pip
+    directory: /pipeline
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      python:
+        patterns: ["*"]
+
+  # The base image and anything installed from a pinned tag in the Dockerfile.
+  # Note: `npm install -g @anthropic-ai/claude-code` inside that image is NOT a manifest, so
+  # Dependabot cannot see or update the writer CLI. It is pulled at build time instead.
+  - package-ecosystem: docker
+    directory: /pipeline
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+
+  # Provider and module versions in the OpenTofu configuration. Dependabot reads the
+  # terraform ecosystem; the syntax is the same.
+  - package-ecosystem: terraform
+    directory: /infra
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+
+  # Actions drift fastest and broke this repo once already, when every action was still on the
+  # deprecated Node 20 runtime.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns: ["*"]
