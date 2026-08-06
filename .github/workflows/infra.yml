@@ -6,13 +6,18 @@ on:
     paths:
       - "infra/**"
       - ".github/workflows/infra.yml"
+  # No path filter on pull requests: these checks are required to merge, and a required check
+  # that is filtered out never reports at all — it sits pending forever and blocks the pull
+  # request instead of passing it. (A check that *runs and skips* is fine: GitHub counts
+  # successful, skipped and neutral alike for required checks.)
   pull_request:
   workflow_dispatch:
 
+# Least privilege at the top, opted into per job. Only the job that talks to AWS gets
+# id-token: write; the static job that runs pull-request code does not, so that code has no
+# ACTIONS_ID_TOKEN_REQUEST_* to mint a JWT from.
 permissions:
   contents: read
-  id-token: write
-  pull-requests: write
 
 concurrency:
   group: infra
@@ -36,14 +41,33 @@ env:
   TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
   TF_VAR_sec_user_agent: ${{ secrets.SEC_USER_AGENT }}
 
+  # Referenced, not used. The runner redacts a registered secret wherever it appears in a log,
+  # including inside a larger string — so naming it here masks the account id in every role ARN
+  # and bucket name these jobs print, without a masking step.
+  #
+  # An ::add-mask:: step cannot do this: the runner echoes a step's script before running it,
+  # so a script containing ${{ vars.…ROLE_ARN }} prints the ARN, and the account id with it, one
+  # line before the mask exists. That is how two earlier attempts failed.
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+
 jobs:
+  # Static checks. Runs for everything, including Dependabot, and holds no AWS capability at
+  # all: no id-token, no credentials, nothing to exchange. This is the job that executes
+  # pull-request code — formatting, the Lambda tests, `tofu validate` — so it is the one that
+  # must not be able to mint an OIDC token.
   plan:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: infra/envs/prod
     steps:
-      - uses: actions/checkout@v7
+      # persist-credentials: false — nothing here pushes, and leaving the job token in
+      # .git/config would put it within reach of the pull-request code this job runs.
+      # Pinned to a commit rather than a tag: a tag is mutable. Dependabot keeps the pin
+      # current, rewriting the SHA and the trailing comment together.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: opentofu/setup-opentofu@v2
         with:
@@ -56,8 +80,39 @@ jobs:
         run: python3 tests/test_handler.py
         working-directory: infra/modules/api
 
+      # -backend=false resolves providers and modules without touching remote state or needing
+      # credentials, which is what makes a real validation possible in a job with no AWS access.
+      - name: Init without the backend
+        run: tofu init -backend=false
+
+      - run: tofu validate
+
+  # Everything that needs AWS. Skipped for Dependabot, which is what removes the capability
+  # rather than merely declining to use it: a skipped job's permissions are never granted.
+  # A skipped required check counts as passing, so this stays a required check without
+  # blocking dependency bumps.
+  plan-aws:
+    if: github.actor != 'dependabot[bot]'
+    needs: plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    defaults:
+      run:
+        working-directory: infra/envs/prod
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: opentofu/setup-opentofu@v2
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+
       # Prints only the identifying claims, never the token. GitHub is moving the subject claim
-      # to a form that embeds numeric ids, and a mismatch here surfaces as an opaque
+      # to a form that embeds numeric ids, and a mismatch surfaces as an opaque
       # "Not authorized to perform sts:AssumeRoleWithWebIdentity" from the next step.
       - name: Show OIDC subject claim
         run: |
@@ -70,14 +125,14 @@ jobs:
           role-to-assume: ${{ github.event_name == 'pull_request' && vars.AWS_TOFU_PLAN_ROLE_ARN || vars.AWS_TOFU_APPLY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      # This repository is public and so are its logs. Plan output is full of ARNs, so the
-      # account id is masked before anything can print it.
-      - name: Mask the account id in logs
-        run: echo "::add-mask::$(aws sts get-caller-identity --query Account --output text)"
-
+      # Values reach the shell through env rather than being interpolated into the script, so
+      # nothing repository-controlled is expanded into executable text.
       - name: Init
-        run: tofu init -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" -backend-config="region=${{ vars.AWS_REGION }}"
-      - run: tofu validate
+        env:
+          STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+          REGION: ${{ vars.AWS_REGION }}
+        run: tofu init -backend-config="bucket=$STATE_BUCKET" -backend-config="region=$REGION"
+
       - run: tofu plan -no-color -out=tfplan
 
       # A summary, not the plan. The full plan lists every ARN, endpoint and policy document,
@@ -110,14 +165,19 @@ jobs:
 
   apply:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: plan
+    needs: plan-aws
     runs-on: ubuntu-latest
     environment: prod
+    permissions:
+      contents: read
+      id-token: write
     defaults:
       run:
         working-directory: infra/envs/prod
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: opentofu/setup-opentofu@v2
         with:
@@ -136,11 +196,11 @@ jobs:
           role-to-assume: ${{ vars.AWS_TOFU_APPLY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Mask the account id in logs
-        run: echo "::add-mask::$(aws sts get-caller-identity --query Account --output text)"
-
       - name: Init
-        run: tofu init -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" -backend-config="region=${{ vars.AWS_REGION }}"
+        env:
+          STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+          REGION: ${{ vars.AWS_REGION }}
+        run: tofu init -backend-config="bucket=$STATE_BUCKET" -backend-config="region=$REGION"
 
       # Planned here rather than reusing the plan job's file: that job may have run under the
       # read-only role, and a plan is only as good as the state it locked.
