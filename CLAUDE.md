@@ -72,6 +72,18 @@ feedback → IA after 90d; nothing auto-deleted.
       "tag":"defined risk", "direction":"bull|bear|vol", "dte":180, "spot":201.60,
       "framing":"205 / 265", "maxLoss":"$1,800", "aggressiveCase":"~+233%",
       "probability":"med" }]
+  },
+  "movies": {                     // OPTIONAL block — the release calendar
+    "updated": "daily",
+    "summary": "two or three sentences on what moved",
+    "releases": [{ "title":"Dune: Part Three", "studio":"Warner Bros.",
+      "date":"2027-03-19",        // free text: a day, "October 2026", "Q1 2027" or "TBA".
+                                  // Studios announce months as often as days; never invent
+                                  // precision that was not stated.
+      "window":"theatrical|streaming|both|festival",
+      "status":"confirmed|delayed|moved|rumoured|released",
+      "reason":null, "note":"one sentence on what changed",
+      "sourceUrl":"https://..." }]
   }
 }
 ```
@@ -94,10 +106,11 @@ alone — one fetch, not N. Fields after `storyCount` are optional; the UI degra
 
 ```jsonc
 [{ "date":"2026-07-17", "edition":26, "leadHeadline":"…", "storyCount":5,
-   "hasStocks":true, "hasOptions":true,
+   "hasStocks":true, "hasOptions":true, "hasMovies":true,
    "candidateCount":3,                                                  // "N models competed"
    "stocks": {"count":10, "lean":"bullish|bearish", "highConviction":["TSM"]},
-   "options": {"count":8, "lean":"bullish|bearish"} }]
+   "options": {"count":8, "lean":"bullish|bearish"},
+   "movies": {"count":4, "highConviction":["dated titles"]} }]          // no lean for film
 ```
 
 ### Config — `data/config/config.json`
@@ -127,7 +140,9 @@ pipeline takes the **latest event per storyId** when aggregating.
 - Data access goes through `src/api/client.js`; every fetched document passes through
   `src/api/normalize.js` before it reaches a component.
 - Unknown provider ids must render generically in the colophon — never hardcode a closed model list.
-- Mobile-first. Tables scroll horizontally with a sticky ticker column.
+- Mobile-first. Tables scroll horizontally with a sticky first column.
+- Tabs, in order: Current Edition · Equities · Options · Archive · Settings · Movies. Every
+  block after the stories is optional; a missing one shows an empty state, never an error.
 - Local state (votes, config draft, imported editions, the failed-POST outbox) lives in
   `localStorage` under `dtb-*` keys.
 

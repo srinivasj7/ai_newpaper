@@ -72,6 +72,29 @@ function normalizeOptions(raw) {
   return ideas.length ? { updated: str(raw.updated, "post-close"), ideas } : null;
 }
 
+const RELEASE_STATUS = ["confirmed", "delayed", "moved", "rumoured", "released"];
+const RELEASE_WINDOW = ["theatrical", "streaming", "both", "festival"];
+
+function normalizeMovies(raw) {
+  if (!isObj(raw)) return null;
+  const releases = arr(raw.releases)
+    .filter((r) => isObj(r) && typeof r.title === "string" && r.title.trim())
+    .map((r) => ({
+      title: str(r.title),
+      studio: str(r.studio),
+      // Free text on purpose: studios announce months and quarters as often as days, and
+      // coercing those to a real date would invent precision nobody stated.
+      date: str(r.date),
+      window: RELEASE_WINDOW.includes(r.window) ? r.window : "theatrical",
+      status: RELEASE_STATUS.includes(r.status) ? r.status : "confirmed",
+      note: str(r.note),
+      sourceUrl: str(r.sourceUrl) || null,
+    }));
+  const summary = str(raw.summary);
+  if (!releases.length && !summary) return null;
+  return { updated: str(raw.updated, "daily"), summary, releases };
+}
+
 /** Returns null when the document is too broken to be an edition at all. */
 export function normalizeEdition(raw) {
   if (!isObj(raw) || !isDate(raw.date)) return null;
@@ -89,6 +112,7 @@ export function normalizeEdition(raw) {
       .filter(Boolean),
     stocks: normalizeStocks(raw.stocks),
     options: normalizeOptions(raw.options),
+    movies: normalizeMovies(raw.movies),
   };
 }
 
@@ -112,9 +136,11 @@ export function normalizeIndex(raw) {
       storyCount: num(e.storyCount),
       hasStocks: !!e.hasStocks,
       hasOptions: !!e.hasOptions,
+      hasMovies: !!e.hasMovies,
       candidateCount: num(e.candidateCount),
       stocks: normalizeSnapshot(e.stocks),
       options: normalizeSnapshot(e.options),
+      movies: normalizeSnapshot(e.movies),
     }))
     .sort((a, b) => b.date.localeCompare(a.date));
 }
@@ -130,6 +156,7 @@ export function summarize(edition) {
     storyCount: edition.stories.length + (edition.lead ? 1 : 0),
     hasStocks: !!edition.stocks,
     hasOptions: !!edition.options,
+    hasMovies: !!edition.movies,
     candidateCount: edition.pipeline.candidates.length || null,
     stocks: edition.stocks
       ? {
@@ -140,6 +167,14 @@ export function summarize(edition) {
       : null,
     options: edition.options
       ? { count: edition.options.ideas.length, lean: lean(edition.options.ideas), highConviction: [] }
+      : null,
+    // No lean for films — the useful highlight is what is actually dated.
+    movies: edition.movies
+      ? {
+          count: edition.movies.releases.length,
+          lean: null,
+          highConviction: edition.movies.releases.filter((r) => r.status === "confirmed").map((r) => r.title).slice(0, 3),
+        }
       : null,
   };
 }

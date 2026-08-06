@@ -134,6 +134,18 @@ editions. Everything after `hasOptions` is optional — the UI degrades graceful
       "framing": "205 / 265", "maxLoss": "$1,800",
       "aggressiveCase": "~+233%", "probability": "med"
     }]
+  },
+  "movies": {                      // OPTIONAL block — the release calendar
+    "updated": "daily",
+    "summary": "two or three sentences on what moved on the calendar",
+    "releases": [{
+      "title": "Dune: Part Three", "studio": "Warner Bros.",
+      "date": "2027-03-19",        // free text: a day, "October 2026", "Q1 2027", "TBA"
+      "window": "theatrical|streaming|both|festival",
+      "status": "confirmed|delayed|moved|rumoured|released",
+      "note": "one sentence on what changed",
+      "sourceUrl": "https://..."
+    }]
   }
 }
 ```
