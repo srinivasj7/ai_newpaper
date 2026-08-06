@@ -267,8 +267,40 @@ def fetch_hacker_news(client: httpx.Client, trust: str, cutoff: datetime) -> lis
     return items
 
 
-def collect(config: SiteConfig, lookback_hours: int, limit: int) -> list[Headline]:
-    """Fetch every allowed source in parallel and return a deduplicated, trimmed pool."""
+# The film sources, named so a desk that only cares about them can be given only them.
+FILM_DOMAINS = frozenset(
+    {
+        "variety.com",
+        "deadline.com",
+        "hollywoodreporter.com",
+        "indiewire.com",
+        "slashfilm.com",
+        "screenrant.com",
+        "collider.com",
+        "avclub.com",
+    }
+)
+
+
+def film_items(pool: list[Headline], limit: int = 70) -> list[Headline]:
+    """The film-desk view of the pool.
+
+    Taken from the *untrimmed* pool on purpose. The writer's pool is capped and ordered
+    preferred-first, and film outlets sit at `allowed` — so trimming for the writer discarded
+    roughly three quarters of the film items before the release calendar ever saw them, and
+    the desk reported a quiet day that was not quiet.
+    """
+    items = [h for h in pool if h.domain in FILM_DOMAINS]
+    items.sort(key=lambda h: h.published or "", reverse=True)
+    log.info("film desk: %d of %d film items", min(limit, len(items)), len(items))
+    return items[:limit]
+
+
+def collect(config: SiteConfig, lookback_hours: int, limit: int | None = None) -> list[Headline]:
+    """Fetch every allowed source in parallel and return a deduplicated pool.
+
+    `limit` trims for the writer. Callers that need the whole pool — the film desk — pass None.
+    """
     cutoff = datetime.now(timezone.utc) - timedelta(hours=lookback_hours)
     blocked = config.blocked_domains()
     domains = [s for s in config.sources if s.trust != "blocked"]
@@ -314,6 +346,10 @@ def collect(config: SiteConfig, lookback_hours: int, limit: int) -> list[Headlin
     rank = {"preferred": 0, "allowed": 1}
     unique.sort(key=lambda h: h.published or "", reverse=True)
     unique.sort(key=lambda h: rank.get(h.trust, 1))
+
+    if limit is None:
+        log.info("pool: %d unique items from %d sources", len(unique), len(domains))
+        return unique
 
     log.info("pool: %d unique items from %d sources (trimmed to %d)", len(unique), len(domains), min(limit, len(unique)))
     return unique[:limit]

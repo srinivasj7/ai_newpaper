@@ -260,11 +260,15 @@ def main(argv: list[str] | None = None) -> int:
     log.info("config: %d topics, %d sources · feedback: %d recent events",
              len(config.enabled_topics), len(config.sources), feedback.events)
 
-    headlines = gather.collect(config, settings.lookback_hours, settings.max_headlines)
-    if not headlines:
+    # Gathered once, in full. The writer gets a trimmed pool; the film desk gets its own slice
+    # of the untrimmed one, because the writer's trim is ordered preferred-first and would
+    # otherwise discard most of the film items before the calendar ever saw them.
+    pool = gather.collect(config, settings.lookback_hours)
+    if not pool:
         log.error("no headlines gathered — refusing to publish a fabricated edition")
         return 3
 
+    headlines = pool[: settings.max_headlines]
     brief = writer_brief(args.date, config, headlines, feedback)
     prompt_text = f"{prompt('writer.md')}\n\n## Brief\n\n{brief}"
     log.info("writer prompt: %.1f KB", len(prompt_text) / 1024)
@@ -304,7 +308,8 @@ def main(argv: list[str] | None = None) -> int:
         edition.stocks, edition.options = stocks, options
 
     if not args.no_movies:
-        edition.movies = build_movies(providers.candidates[0], edition, headlines)
+        film = gather.film_items(pool)
+        edition.movies = build_movies(providers.candidates[0], edition, film) if film else None
 
     log.info(
         "edition No. %d: lead %r, %d stories, %s, %s, %s",
