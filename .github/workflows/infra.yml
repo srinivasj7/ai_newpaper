@@ -42,7 +42,22 @@ jobs:
     defaults:
       run:
         working-directory: infra/envs/prod
+    env:
+      # GitHub withholds secrets from Dependabot-triggered runs. Without them the root module
+      # evaluates a smaller configuration, so the plan proposes deleting whatever those inputs
+      # sustain — and prints the current values, read back from state, into a public log. That
+      # is how an email address reached one. A dependency bump has no business planning
+      # infrastructure, so the AWS half is skipped and the job passes on its static checks
+      # alone, which keeps the required check reporting instead of hanging.
+      SKIP_AWS: ${{ github.actor == 'dependabot[bot]' }}
     steps:
+      # First, before anything can print it. The account id appears in the role ARN that
+      # configure-aws-credentials echoes from its `with:` block, so masking after that step —
+      # or from `sts get-caller-identity`, which needs credentials — is already too late.
+      # Repository variables are available here even on Dependabot runs, where secrets are not.
+      - name: Mask the account id in logs
+        run: echo "::add-mask::$(echo '${{ vars.AWS_TOFU_APPLY_ROLE_ARN }}' | cut -d: -f5)"
+
       - uses: actions/checkout@v7
 
       - uses: opentofu/setup-opentofu@v2
@@ -66,24 +81,23 @@ jobs:
           echo "$token" | jq -R 'split(".") | .[1] | @base64d | fromjson | {sub, aud, repository, event_name}'
 
       - uses: aws-actions/configure-aws-credentials@v6
+        if: env.SKIP_AWS != 'true'
         with:
           role-to-assume: ${{ github.event_name == 'pull_request' && vars.AWS_TOFU_PLAN_ROLE_ARN || vars.AWS_TOFU_APPLY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      # This repository is public and so are its logs. Plan output is full of ARNs, so the
-      # account id is masked before anything can print it.
-      - name: Mask the account id in logs
-        run: echo "::add-mask::$(aws sts get-caller-identity --query Account --output text)"
-
       - name: Init
+        if: env.SKIP_AWS != 'true'
         run: tofu init -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" -backend-config="region=${{ vars.AWS_REGION }}"
-      - run: tofu validate
-      - run: tofu plan -no-color -out=tfplan
+      - if: env.SKIP_AWS != 'true'
+        run: tofu validate
+      - if: env.SKIP_AWS != 'true'
+        run: tofu plan -no-color -out=tfplan
 
       # A summary, not the plan. The full plan lists every ARN, endpoint and policy document,
       # and a comment on a public pull request is a permanent, indexable place to publish them.
       - name: Comment the plan summary
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && env.SKIP_AWS != 'true'
         uses: actions/github-script@v9
         with:
           script: |
@@ -117,6 +131,13 @@ jobs:
       run:
         working-directory: infra/envs/prod
     steps:
+      # First, before anything can print it. The account id appears in the role ARN that
+      # configure-aws-credentials echoes from its `with:` block, so masking after that step —
+      # or from `sts get-caller-identity`, which needs credentials — is already too late.
+      # Repository variables are available here even on Dependabot runs, where secrets are not.
+      - name: Mask the account id in logs
+        run: echo "::add-mask::$(echo '${{ vars.AWS_TOFU_APPLY_ROLE_ARN }}' | cut -d: -f5)"
+
       - uses: actions/checkout@v7
 
       - uses: opentofu/setup-opentofu@v2
@@ -135,9 +156,6 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_TOFU_APPLY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
-
-      - name: Mask the account id in logs
-        run: echo "::add-mask::$(aws sts get-caller-identity --query Account --output text)"
 
       - name: Init
         run: tofu init -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" -backend-config="region=${{ vars.AWS_REGION }}"
