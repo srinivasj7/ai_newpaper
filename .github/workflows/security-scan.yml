@@ -60,13 +60,21 @@ jobs:
       # The gate. Findings fail the job; the three accepted today are listed in .trivyignore
       # with the reasoning, so this blocks on anything *new* rather than on a backlog — a check
       # that is always red teaches people to ignore it.
-      - name: Fail on any finding
+      # Severity is read from the report, not from the scan flags: Trivy's SARIF export ignores
+      # `--severity` and includes low findings regardless, so filtering here is what actually
+      # sets the bar. 4.0 is the bottom of MEDIUM on the SARIF scale (low is 2.0).
+      - name: Fail on any finding at medium or above
         run: |
-          count=$(jq '[.runs[].results[]?] | length' trivy-infra.sarif)
-          echo "findings after the accepted baseline: $count"
+          filter='[ .runs[] as $r | $r.results[]? | .ruleId as $id
+                    | ($r.tool.driver.rules[] | select(.id == $id)
+                       | (.properties["security-severity"] // "0") | tonumber)
+                    | select(. >= 4) ] | length'
+          count=$(jq "$filter" trivy-infra.sarif)
+          total=$(jq '[.runs[].results[]?] | length' trivy-infra.sarif)
+          echo "findings: $count at medium or above, $total including low"
           if [ "$count" -gt 0 ]; then
             jq -r '.runs[].results[]? | "  \(.ruleId): \(.message.text)"' trivy-infra.sarif
-            echo "::error::$count infrastructure finding(s). Fix them, or accept one in .trivyignore with a written reason."
+            echo "::error::$count infrastructure finding(s) at medium or above. Fix them, or accept one in .trivyignore with a written reason."
             exit 1
           fi
 
@@ -104,14 +112,20 @@ jobs:
           sarif_file: trivy-image.sarif
           category: trivy-image
 
-      # Same reasoning as the infrastructure job: the report decides, not the scanner's exit code.
-      - name: Fail on any fixable vulnerability
+      # Same reasoning as the infrastructure job: the report decides, not the scanner's exit
+      # code, and the severity bar is applied here. 7.0 is the bottom of HIGH.
+      - name: Fail on fixable high or critical vulnerabilities
         run: |
-          count=$(jq '[.runs[].results[]?] | length' trivy-image.sarif)
-          echo "fixable CRITICAL/HIGH vulnerabilities: $count"
+          filter='[ .runs[] as $r | $r.results[]? | .ruleId as $id
+                    | ($r.tool.driver.rules[] | select(.id == $id)
+                       | (.properties["security-severity"] // "0") | tonumber)
+                    | select(. >= 7) ] | length'
+          count=$(jq "$filter" trivy-image.sarif)
+          total=$(jq '[.runs[].results[]?] | length' trivy-image.sarif)
+          echo "vulnerabilities: $count at high or above, $total including lower"
           if [ "$count" -gt 0 ]; then
             jq -r '.runs[].results[]? | "  \(.ruleId): \(.message.text)"' trivy-image.sarif | head -40
-            echo "::error::$count fixable vulnerability(ies) in the image. Rebuild on a patched base, or accept one in .trivyignore with a written reason."
+            echo "::error::$count fixable high/critical vulnerability(ies) in the image. Rebuild on a patched base, or accept one in .trivyignore with a written reason."
             exit 1
           fi
 
