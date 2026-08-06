@@ -36,9 +36,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Findings fail the job. The three that exist today are accepted by name in .trivyignore
-      # with the reasoning written down, so this blocks on anything *new* rather than on a
-      # backlog — a check that is always red teaches people to ignore it.
+      # The scan itself never decides the outcome. Trivy's own `exit-code` is unreliable when
+      # the output format is SARIF — it reported failure here with zero findings, and locally
+      # it reported success *with* findings — so the pass/fail decision is made below from the
+      # report, which is the artefact that actually says what was found.
       - name: Scan the OpenTofu configuration
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -48,15 +49,26 @@ jobs:
           output: trivy-infra.sarif
           severity: CRITICAL,HIGH,MEDIUM
           trivyignores: .trivyignore
-          exit-code: "1"
+          exit-code: "0"
 
-      # Runs even when the scan failed, so the finding is visible in the Security tab and not
-      # only in a red job log.
       - uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-infra.sarif
           category: trivy-infra
+
+      # The gate. Findings fail the job; the three accepted today are listed in .trivyignore
+      # with the reasoning, so this blocks on anything *new* rather than on a backlog — a check
+      # that is always red teaches people to ignore it.
+      - name: Fail on any finding
+        run: |
+          count=$(jq '[.runs[].results[]?] | length' trivy-infra.sarif)
+          echo "findings after the accepted baseline: $count"
+          if [ "$count" -gt 0 ]; then
+            jq -r '.runs[].results[]? | "  \(.ruleId): \(.message.text)"' trivy-infra.sarif
+            echo "::error::$count infrastructure finding(s). Fix them, or accept one in .trivyignore with a written reason."
+            exit 1
+          fi
 
   image:
     name: container image
@@ -72,8 +84,8 @@ jobs:
       - name: Build the pipeline image
         run: docker build -t pipeline-scan:ci pipeline
 
-      # Only fixable CRITICAL/HIGH vulnerabilities fail: an unpatched CVE in a base image is
-      # not something a merge can fix, so blocking on it would just stop all work.
+      # Only fixable CRITICAL/HIGH vulnerabilities count: an unpatched CVE in a base image is
+      # not something a merge can resolve, so blocking on it would just stop all work.
       - name: Scan it
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -84,13 +96,24 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           trivyignores: .trivyignore
-          exit-code: "1"
+          exit-code: "0"
 
       - uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-image.sarif
           category: trivy-image
+
+      # Same reasoning as the infrastructure job: the report decides, not the scanner's exit code.
+      - name: Fail on any fixable vulnerability
+        run: |
+          count=$(jq '[.runs[].results[]?] | length' trivy-image.sarif)
+          echo "fixable CRITICAL/HIGH vulnerabilities: $count"
+          if [ "$count" -gt 0 ]; then
+            jq -r '.runs[].results[]? | "  \(.ruleId): \(.message.text)"' trivy-image.sarif | head -40
+            echo "::error::$count fixable vulnerability(ies) in the image. Rebuild on a patched base, or accept one in .trivyignore with a written reason."
+            exit 1
+          fi
 
   dependency-review:
     name: dependency review
