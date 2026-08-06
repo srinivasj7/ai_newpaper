@@ -1,0 +1,18 @@
+# CodeRabbit configuration — https://docs.coderabbit.ai/getting-started/configure-coderabbit
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+reviews:
+  profile: assertive
+  # Keep the "review skipped / completed" status comment on PRs.
+  review_status: true
+  auto_review:
+    enabled: true
+    # Don't auto-review draft PRs — they are still in progress.
+    drafts: false
+    # Auto-review pull requests no matter which branch they target. By default CodeRabbit only
+    # auto-reviews PRs into the repository's default branch, which is why PRs opened against
+    # feature branches (e.g. fix/ci-log-leaks) were skipped. ".*" matches every base branch.
+    base_branches:
+      - ".*"
+chat:
+  auto_reply: true
