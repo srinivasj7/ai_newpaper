@@ -63,7 +63,10 @@ jobs:
       # persist-credentials: false — this workflow runs pull-request code (fmt, tests, plan),
       # and a checkout that leaves the job's token in .git/config puts it within reach of that
       # code. Nothing here pushes, so the credential has no reason to persist.
-      - uses: actions/checkout@v7
+      # Pinned to a commit, not a tag: a tag is mutable, and this job holds an OIDC token that
+      # can assume an AWS role. Dependabot keeps the pin current — it rewrites both the SHA and
+      # the trailing comment.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -162,7 +165,10 @@ jobs:
       # persist-credentials: false — this workflow runs pull-request code (fmt, tests, plan),
       # and a checkout that leaves the job's token in .git/config puts it within reach of that
       # code. Nothing here pushes, so the credential has no reason to persist.
-      - uses: actions/checkout@v7
+      # Pinned to a commit, not a tag: a tag is mutable, and this job holds an OIDC token that
+      # can assume an AWS role. Dependabot keeps the pin current — it rewrites both the SHA and
+      # the trailing comment.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
