@@ -36,3 +36,13 @@ variable "price_class" {
   type        = string
   default     = "PriceClass_100"
 }
+
+variable "app_origins" {
+  description = <<-EOT
+    Web origins allowed to read /data/* and /app/* cross-origin (CORS). The bundled Capacitor
+    app runs at https://localhost on both platforms. Add a custom domain here only if a separate
+    web app on another origin ever needs to read the data. Leave empty to disable CORS entirely.
+  EOT
+  type        = list(string)
+  default     = ["https://localhost"]
+}

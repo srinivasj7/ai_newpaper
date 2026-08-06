@@ -82,6 +82,16 @@ variable "price_class" {
   default     = "PriceClass_100"
 }
 
+variable "app_origins" {
+  description = <<-EOT
+    Web origins allowed to read /data|/app and write /api cross-origin (CORS), for the bundled
+    mobile app. Both platforms run at https://localhost. Same-origin browsers behind CloudFront
+    are unaffected. Add a custom domain here only if a separate web origin must reach the data.
+  EOT
+  type        = list(string)
+  default     = ["https://localhost"]
+}
+
 # ------------------------------------------------------------------ scheduled pipeline
 # All optional. Without claude_token_parameter the runner is not created at all and the
 # paper is published from wherever you run the pipeline by hand.

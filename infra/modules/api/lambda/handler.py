@@ -26,6 +26,11 @@ DATA_PREFIX = os.environ.get("DATA_PREFIX", "data/")
 CONFIG_KEY = f"{DATA_PREFIX}config/config.json"
 FEEDBACK_PREFIX = f"{DATA_PREFIX}feedback/"
 
+# Origins allowed to call this cross-origin (CORS). Same-origin browsers behind CloudFront send
+# no Origin and are unaffected; the mobile app runs at https://localhost and is not same-origin.
+# Comma-separated, exact match — an origin not on this list is never echoed back.
+ALLOWED_ORIGINS = tuple(o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip())
+
 MAX_BODY_BYTES = 256 * 1024
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 STORY_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$")
@@ -44,7 +49,25 @@ def handler(event, _context):
     http = event.get("requestContext", {}).get("http", {})
     method = http.get("method", "GET")
     path = event.get("rawPath", "") or ""
+    origin = _allowed_origin(event)
 
+    # The mobile app is cross-origin (https://localhost), and every write carries a custom
+    # x-amz-content-sha256 header, which makes the POST non-simple — so the browser fires an
+    # OPTIONS preflight first. CloudFront forwards OPTIONS to this origin (it cannot synthesize
+    # the 2xx itself), so answer it here, before the method check that would otherwise 405 it.
+    if method == "OPTIONS":
+        return _reply(204, None, _preflight_headers(origin))
+
+    resp = _route(method, path, event)
+
+    # Let the browser read the response of the actual request, too.
+    if origin:
+        resp["headers"]["access-control-allow-origin"] = origin
+        resp["headers"]["vary"] = "Origin"
+    return resp
+
+
+def _route(method, path, event):
     try:
         if path.endswith("/health"):
             return _reply(200, {"ok": True, "at": _now()})
@@ -66,6 +89,27 @@ def handler(event, _context):
     except Exception as e:  # noqa: BLE001 — never leak a stack trace to the browser
         print(f"ERROR {type(e).__name__}: {e}")
         return _reply(500, {"error": "internal error"})
+
+
+def _allowed_origin(event):
+    """The request's Origin, but only if it is on the allowlist — an untrusted origin is never
+    echoed back. A same-origin request (the website) sends no Origin and gets None, which is
+    correct: it needs no CORS headers."""
+    headers = event.get("headers") or {}
+    origin = headers.get("origin") or headers.get("Origin")
+    return origin if origin in ALLOWED_ORIGINS else None
+
+
+def _preflight_headers(origin):
+    headers = {
+        "access-control-allow-methods": "POST, OPTIONS",
+        "access-control-allow-headers": "content-type, x-amz-content-sha256",
+        "access-control-max-age": "600",
+        "vary": "Origin",
+    }
+    if origin:
+        headers["access-control-allow-origin"] = origin
+    return headers
 
 
 # --------------------------------------------------------------------------- routes
@@ -190,9 +234,12 @@ def _now():
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
-def _reply(status, payload):
+def _reply(status, payload, extra_headers=None):
+    headers = {"content-type": "application/json", "cache-control": "no-store"}
+    if extra_headers:
+        headers.update(extra_headers)
     return {
         "statusCode": status,
-        "headers": {"content-type": "application/json", "cache-control": "no-store"},
-        "body": json.dumps(payload),
+        "headers": headers,
+        "body": "" if payload is None else json.dumps(payload),
     }

@@ -9,6 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/browser": "latest",
+    "@capacitor/core": "latest",
+    "@capacitor/splash-screen": "latest",
+    "@capgo/capacitor-updater": "latest",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
