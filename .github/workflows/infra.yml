@@ -56,7 +56,12 @@ jobs:
       # or from `sts get-caller-identity`, which needs credentials — is already too late.
       # Repository variables are available here even on Dependabot runs, where secrets are not.
       - name: Mask the account id in logs
-        run: echo "::add-mask::$(echo '${{ vars.AWS_TOFU_APPLY_ROLE_ARN }}' | cut -d: -f5)"
+        # Block scalar: the command contains `cut -d:` and a bare `key: value` colon inside a
+        # plain YAML scalar makes the whole workflow unparseable — which is silent, because
+        # GitHub then never runs it and the required check simply never reports.
+        run: |
+          acct=$(echo '${{ vars.AWS_TOFU_APPLY_ROLE_ARN }}' | cut -d':' -f5)
+          echo "::add-mask::$acct"
 
       - uses: actions/checkout@v7
 
@@ -136,7 +141,12 @@ jobs:
       # or from `sts get-caller-identity`, which needs credentials — is already too late.
       # Repository variables are available here even on Dependabot runs, where secrets are not.
       - name: Mask the account id in logs
-        run: echo "::add-mask::$(echo '${{ vars.AWS_TOFU_APPLY_ROLE_ARN }}' | cut -d: -f5)"
+        # Block scalar: the command contains `cut -d:` and a bare `key: value` colon inside a
+        # plain YAML scalar makes the whole workflow unparseable — which is silent, because
+        # GitHub then never runs it and the required check simply never reports.
+        run: |
+          acct=$(echo '${{ vars.AWS_TOFU_APPLY_ROLE_ARN }}' | cut -d':' -f5)
+          echo "::add-mask::$acct"
 
       - uses: actions/checkout@v7
 
