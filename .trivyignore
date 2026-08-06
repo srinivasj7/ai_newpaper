@@ -24,23 +24,27 @@ AWS-0132
 
 # --------------------------------------------------------------------------- container image
 #
-# These four live inside npm's own vendored dependency tree, not in anything this project
-# wrote or chose. `npm install -g npm@latest` still ships them, so there is no version to
-# upgrade to from here — the earlier npm update did clear four others, which is why these are
-# the residue rather than the original eight.
+# All five live inside npm's vendored dependency tree, not in anything this project wrote or
+# chose, and none is reachable from the pipeline: npm exists in the image only to install the
+# writer CLI, nothing invokes it at runtime, and the container accepts no inbound connections.
 #
-# They are build-time code: the image needs node and the writer CLI at runtime, and npm only
-# to install it. Nothing in the pipeline invokes npm, and the container has no inbound network
-# path. The real fix is to delete /usr/lib/node_modules/npm after the install, which removes
-# the code rather than the alert — worth doing when the pipeline can be re-verified end to end,
-# since the CLI's auto-updater expects npm to exist.
+# Both structural fixes were tried and both break the writer, verified by building the image
+# and running `claude --version`:
 #
-# Revisit whenever the base image or the writer CLI is bumped; if npm stops vendoring these,
-# delete these lines and let the gate confirm it.
-CVE-2026-14257
-CVE-2026-69152
-CVE-2026-69192
-CVE-2026-54272
+#   npm install -g npm@latest        -> "claude native binary not installed"
+#   rm -rf /usr/lib/node_modules/npm -> the same
+#
+# The CLI places a native binary from a postinstall script that the newer npm does not run,
+# with or without --ignore-scripts=false. So these are accepted by id: a working paper beats a
+# clean report.
+#
+# This list is tied to one image build and will drift. Re-scan and rewrite it whenever the base
+# image or the writer CLI is bumped, rather than appending to it.
+CVE-2026-13149
+CVE-2026-33671
+CVE-2026-48815
+CVE-2026-59873
+CVE-2026-59874
 
 # AWS-0010 — CloudFront access logging is not configured.
 # Accepted. Access logs record viewer IP addresses, which is more personal data than this site
