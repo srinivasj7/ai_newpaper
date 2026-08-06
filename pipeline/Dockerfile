@@ -13,7 +13,11 @@ RUN apt-get update \
  && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" > /etc/apt/sources.list.d/nodesource.list \
  && apt-get update \
  && apt-get install -y --no-install-recommends nodejs \
+ # The npm bundled with the distro package lags, and its own dependencies carry most of the
+ # image's fixable CVEs. Updating it first is the cheapest way to keep the scan clean.
+ && npm install -g npm@latest \
  && npm install -g @anthropic-ai/claude-code \
+ && npm cache clean --force \
  && apt-get purge -y gnupg \
  && apt-get autoremove -y \
  && rm -rf /var/lib/apt/lists/*
