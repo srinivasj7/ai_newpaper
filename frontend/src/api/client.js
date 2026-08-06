@@ -2,6 +2,8 @@
    Reads come from the S3-backed /data prefix; writes go to the Lambda behind /api.
    Both bases are same-origin behind CloudFront in production. */
 
+import { getToken, Unauthorized } from "./token.js";
+
 const DATA = import.meta.env.VITE_DATA_BASE ?? "/data";
 const API = import.meta.env.VITE_API_BASE ?? "/api";
 
@@ -59,6 +61,11 @@ async function post(path, body) {
   // crypto.subtle exists in every secure context, which includes localhost.
   if (globalThis.crypto?.subtle) headers["x-amz-content-sha256"] = await payloadHash(payload);
 
+  // Every write is gated. Read at send time, not at module load, so unlocking takes effect
+  // without a reload.
+  const token = getToken();
+  if (token) headers["x-dtb-token"] = token;
+
   const send = () => fetch(`${API}${path}`, { method: "POST", headers, body: payload });
 
   let res;
@@ -68,9 +75,17 @@ async function post(path, body) {
     res = await send(); // one retry — a flaky connection shouldn't lose a vote
   }
   if (!res.ok && res.status >= 500) res = await send();
+
+  // A wrong secret is not a transient failure: never retry it, and never park it in the outbox
+  // to be replayed forever. It needs a person to type the right thing.
+  if (res.status === 401) throw new Unauthorized(path);
+
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} — ${path}`);
   return res.json().catch(() => ({ ok: true }));
 }
 
 export const postConfig = (config) => post("/config", config);
 export const postFeedback = (event) => post("/feedback", event);
+
+/** Check a secret without writing anything, so Settings can say "wrong passphrase" straight away. */
+export const checkToken = () => post("/session", {}).then(() => true);

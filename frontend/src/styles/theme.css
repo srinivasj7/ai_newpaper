@@ -12,11 +12,36 @@
   --paper:#F6F5F1; --ink:#16150F; --ink-soft:#4A4840;
   --wire:#1F3FAE; --rule:#D8D6CE; --rule-dark:#16150F;
   --up:#1D6B45; --down:#9E2B25; --neutral:#6B6858;
+  /* Surfaces that used to be literal hex in the rules below. Naming them is what makes the
+     dark theme a token swap rather than a second stylesheet. */
+  --field:#FFFFFF;     /* inputs, textareas, the export block */
+  --tint:#FCFBF8;      /* expanded table rows, the connection banner */
+  --hover:#EFEEE8;     /* row hover */
+  --on-accent:#FFFFFF; /* text on a filled green/red control */
   --serif:'Newsreader', Georgia, serif;
   --label:'Archivo Narrow', 'Arial Narrow', sans-serif;
   --mono:'IBM Plex Mono', ui-monospace, monospace;
 }
+
+/* ---------- Dark ----------
+   The same newspaper after dark, not a different design: warm near-black stock, warm off-white
+   ink. Only the tokens change. Three of them have to be re-picked rather than inverted —
+   #1F3FAE, the market green and the market red are all chosen for contrast against paper and
+   are close to unreadable against black, so each is lifted to a lighter, less saturated
+   sibling that keeps its meaning (blue = link, green = up, red = down) and clears 4.5:1.
+   data-theme is stamped by useTheme.js, which resolves "auto" against the system setting —
+   so there is exactly one dark block here, not two. */
+:root[data-theme="dark"]{
+  --paper:#14140F; --ink:#EDEBE3; --ink-soft:#A6A296;
+  --wire:#9FB4FF; --rule:#2E2D26; --rule-dark:#55534A;
+  --up:#5FBE8A; --down:#E58079; --neutral:#8F8B7C;
+  --field:#1C1B16; --tint:#1A1914; --hover:#232219;
+  --on-accent:#0F0F0B;
+}
 *{box-sizing:border-box; margin:0; padding:0;}
+/* The shell is not always tall enough to cover the viewport; without this the area beyond it
+   stays the browser default and the dark theme ends in a white band. */
+html,body{background:var(--paper);}
 .dc-root{background:var(--paper); color:var(--ink); font-family:var(--serif);
   min-height:100vh; font-size:17px; line-height:1.5;}
 .dc-shell{max-width:1080px; margin:0 auto; padding:0 20px 80px;}
@@ -31,6 +56,37 @@
 .dc-mast-sub{font-family:var(--label); font-size:12px; letter-spacing:.22em;
   text-transform:uppercase; color:var(--ink-soft); margin-top:10px;}
 
+/* Masthead utility rail: freshness + theme + lock + links */
+.dc-mast-right{display:flex; align-items:center; gap:14px;}
+.dc-tools{display:flex; align-items:center; gap:2px;}
+.dc-tool{appearance:none; background:none; border:none; cursor:pointer; color:var(--ink-soft);
+  font-family:var(--mono); font-size:13px; line-height:1; padding:5px 6px; text-decoration:none;
+  display:inline-flex; align-items:center; border-radius:3px;}
+.dc-tool:hover{color:var(--wire); background:var(--hover);}
+.dc-tool.on{color:var(--up);}
+.dc-tool:focus-visible{outline:2px solid var(--wire); outline-offset:1px;}
+.dc-fresh{display:inline-flex; align-items:center; gap:6px; white-space:nowrap;}
+.dc-fresh .dot{width:6px; height:6px; border-radius:50%; background:var(--up); display:inline-block;}
+.dc-fresh.stale{color:var(--down);}
+.dc-fresh.stale .dot{background:var(--down);}
+
+/* Visible to a screen reader, not to the eye. */
+.sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+  clip:rect(0 0 0 0); white-space:nowrap; border:0;}
+
+/* Unlock dialog */
+.dc-modal-back{position:fixed; inset:0; z-index:50; background:rgba(10,10,8,.55);
+  display:flex; align-items:center; justify-content:center; padding:20px;}
+.dc-modal{background:var(--paper); color:var(--ink); border:1px solid var(--rule-dark);
+  max-width:420px; width:100%; padding:22px 20px; box-shadow:0 10px 40px rgba(0,0,0,.25);}
+.dc-modal h3{font-family:var(--label); font-size:14px; font-weight:700; letter-spacing:.2em;
+  text-transform:uppercase;}
+.dc-modal .hint{font-style:italic; color:var(--ink-soft); font-size:15px; margin:8px 0 14px;}
+.dc-modal input{width:100%; font-family:var(--mono); font-size:14px; padding:9px 10px;
+  border:1px solid var(--rule-dark); background:var(--field); color:var(--ink);}
+.dc-modal input:focus{outline:2px solid var(--wire); outline-offset:-1px;}
+.dc-modal-foot{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
+
 /* Section nav */
 .dc-nav{display:flex; justify-content:center; gap:0; border-bottom:1px solid var(--rule-dark);
   overflow-x:auto; -webkit-overflow-scrolling:touch;}
@@ -41,10 +97,14 @@
 .dc-nav button.on{color:var(--ink); border-bottom-color:var(--wire); font-weight:700;}
 .dc-nav button:focus-visible{outline:2px solid var(--wire); outline-offset:-2px;}
 
+/* On a phone the rail matters more than the wall-clock date, which the freshness pill implies. */
+@media(max-width:560px){ .dc-mast-date{display:none;} }
+
 /* Edition header */
 .dc-edhead{display:flex; justify-content:space-between; align-items:baseline;
   padding:16px 0 6px; font-family:var(--mono); font-size:12px; color:var(--ink-soft);}
 .dc-edhead b{color:var(--ink); font-weight:500;}
+.dc-edhead .dc-back-issue{font-family:var(--serif); font-size:13px; color:var(--down); font-style:italic;}
 
 /* Lead story */
 .dc-lead{padding:22px 0 26px; border-bottom:1px solid var(--rule-dark);}
@@ -99,8 +159,8 @@
   font-family:var(--label); font-size:11px; font-weight:600; letter-spacing:.12em;
   text-transform:uppercase; color:var(--ink);}
 .dc-fb button:hover{background:var(--ink); color:var(--paper);}
-.dc-fb button.on-keep{background:var(--up); border-color:var(--up); color:#fff;}
-.dc-fb button.on-spike{background:var(--down); border-color:var(--down); color:#fff;
+.dc-fb button.on-keep{background:var(--up); border-color:var(--up); color:var(--on-accent);}
+.dc-fb button.on-spike{background:var(--down); border-color:var(--down); color:var(--on-accent);
   text-decoration:line-through;}
 
 /* Archive */
@@ -133,7 +193,7 @@
   font-family:var(--mono); font-size:14px; padding:2px 6px;}
 .dc-add{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;}
 .dc-add input, .dc-add select, .dc-import textarea{font-family:var(--mono); font-size:13px;
-  padding:8px 10px; border:1px solid var(--rule-dark); background:#fff; color:var(--ink);}
+  padding:8px 10px; border:1px solid var(--rule-dark); background:var(--field); color:var(--ink);}
 .dc-add input{flex:1; min-width:160px;}
 .dc-add input:focus, .dc-import textarea:focus{outline:2px solid var(--wire); outline-offset:-1px;}
 .dc-btn{appearance:none; cursor:pointer; background:var(--ink); color:var(--paper); border:none;
@@ -144,7 +204,7 @@
 .dc-import textarea{width:100%; min-height:110px; margin-top:8px;}
 .dc-note{font-family:var(--mono); font-size:11.5px; margin-top:8px;}
 .dc-note.ok{color:var(--up);} .dc-note.err{color:var(--down);}
-pre.dc-export{font-family:var(--mono); font-size:11.5px; background:#fff;
+pre.dc-export{font-family:var(--mono); font-size:11.5px; background:var(--field);
   border:1px solid var(--rule-dark); padding:12px; margin-top:10px; overflow-x:auto;
   max-height:280px; white-space:pre-wrap; word-break:break-word;}
 
@@ -170,9 +230,10 @@ pre.dc-export{font-family:var(--mono); font-size:11.5px; background:#fff;
 .dc-save{font-family:var(--mono); font-size:11px; letter-spacing:.05em; color:var(--ink-soft);
   align-self:center;}
 .dc-save.saving{color:var(--ink-soft);} .dc-save.saved{color:var(--up);} .dc-save.failed{color:var(--down);}
+.dc-save.locked{color:var(--down);}
 .dc-banner{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;
   border:1px solid var(--down); border-left-width:3px; padding:10px 12px; margin:16px 0 0;
-  font-family:var(--mono); font-size:11.5px; color:var(--down); background:#FCFBF8;}
+  font-family:var(--mono); font-size:11.5px; color:var(--down); background:var(--tint);}
 .dc-banner .retry{appearance:none; background:none; border:none; cursor:pointer; padding:0;
   font-family:var(--label); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
   color:var(--down); border-bottom:1px solid currentColor;}
@@ -199,8 +260,8 @@ table.dc-tab{border-collapse:collapse; width:100%; min-width:680px; font-size:14
 .dc-conv.high{background:var(--ink); color:var(--paper);}
 .dc-conv.low{color:var(--ink-soft); border-color:var(--rule);}
 .dc-tab tr.dc-exp-toggle{cursor:pointer;}
-.dc-tab tr.dc-exp-toggle:hover td{background:#EFEEE8;}
-.dc-exp td{background:#FCFBF8; font-size:15px; padding:14px 12px; border-bottom:1px solid var(--rule-dark);}
+.dc-tab tr.dc-exp-toggle:hover td{background:var(--hover);}
+.dc-exp td{background:var(--tint); font-size:15px; padding:14px 12px; border-bottom:1px solid var(--rule-dark);}
 .dc-exp .why{font-style:italic;}
 .dc-exp a{color:var(--wire); font-family:var(--mono); font-size:11.5px; text-decoration:none;
   border-bottom:1px solid currentColor;}

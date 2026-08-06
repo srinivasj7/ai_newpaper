@@ -11,3 +11,19 @@ export const archiveDate = (date) =>
 
 export const todayShort = () =>
   new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+export const shortDate = (date) => at(date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+/** Whole days between an edition's date and today. Negative is impossible in practice; treat it as 0. */
+export const daysOld = (date) => {
+  const ms = at(new Date().toISOString().slice(0, 10)) - at(date);
+  return Math.max(0, Math.round(ms / 86_400_000));
+};
+
+/** "Today", "Yesterday", "3 days ago" — the age of the paper, in the reader's terms. */
+export const ageLabel = (date) => {
+  const d = daysOld(date);
+  if (d === 0) return "Today";
+  if (d === 1) return "Yesterday";
+  return `${d} days ago`;
+};

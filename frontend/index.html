@@ -6,7 +6,9 @@
          native WebView (notch / home indicator). On the web those insets are 0, so the site
          is unchanged. See the safe-area block in styles/theme.css. -->
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="color-scheme" content="light" />
+    <!-- Both, so the browser paints the right canvas before React runs and there is no white
+         flash on the way into the dark theme. useTheme.js then stamps the resolved one. -->
+    <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <meta
       name="description"

@@ -92,6 +92,18 @@ variable "app_origins" {
   default     = ["https://localhost"]
 }
 
+variable "admin_token_parameter" {
+  description = <<-EOT
+    Name of the SecureString parameter holding the shared secret that gates every write to the
+    API. Created by hand, so the value exists in exactly one place and never in state:
+      aws ssm put-parameter --name /daily-compile/admin-token --type SecureString --value <32 random chars>
+    Defaulted rather than left to a repository variable on purpose: an input that is set locally
+    but absent in CI makes CI compute a smaller configuration and delete the difference.
+  EOT
+  type        = string
+  default     = "/daily-compile/admin-token"
+}
+
 # ------------------------------------------------------------------ scheduled pipeline
 # All optional. Without claude_token_parameter the runner is not created at all and the
 # paper is published from wherever you run the pipeline by hand.

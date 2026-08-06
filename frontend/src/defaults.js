@@ -23,6 +23,8 @@ export const WEIGHTS = ["high", "normal", "low"];
 export const TRUSTS = ["preferred", "allowed", "blocked"];
 
 export const K = {
+  token: "dtb-token",
+  theme: "dtb-theme",
   config: "dtb-config",
   feedback: "dtb-feedback",
   outbox: "dtb-feedback-outbox",

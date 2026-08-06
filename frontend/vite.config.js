@@ -35,8 +35,15 @@ function devBackend() {
 
         if (pathname === "/api/health") return send(res, 200, { ok: true, dev: true });
 
-        if (pathname === "/api/config" || pathname === "/api/feedback") {
+        if (pathname === "/api/session" || pathname === "/api/config" || pathname === "/api/feedback") {
           if (req.method !== "POST") return send(res, 405, { error: "method not allowed" });
+
+          // The real API rejects a write with no secret. Mirroring that here is the point of a
+          // dev backend: unlocking is part of the flow, so it has to be exercised locally.
+          // Any non-empty value passes — the actual secret is not on this machine.
+          if (!req.headers["x-dtb-token"]) return send(res, 401, { error: "unauthorized" });
+          if (pathname === "/api/session") return send(res, 200, { ok: true, dev: true });
+
           const body = await readBody(req);
           server.config.logger.info(
             `[dev-api] POST ${pathname} ${body.slice(0, 400)}${body.length > 400 ? "…" : ""}`,

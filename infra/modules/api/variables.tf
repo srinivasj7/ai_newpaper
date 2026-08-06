@@ -19,6 +19,20 @@ variable "data_prefix" {
   default     = "data/"
 }
 
+variable "admin_token_parameter" {
+  description = <<-EOT
+    Name of the SecureString parameter holding the shared secret that every write must present,
+    e.g. /daily-compile/admin-token. The function reads it at cold start; it is deliberately not
+    a `data` source, because that would put the secret in the plan output and in state.
+  EOT
+  type        = string
+}
+
+variable "admin_token_parameter_arn" {
+  description = "ARN of that parameter — the only one this function may read."
+  type        = string
+}
+
 variable "log_retention_days" {
   description = "CloudWatch retention for the function's logs."
   type        = number
