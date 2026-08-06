@@ -36,6 +36,15 @@ env:
   TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
   TF_VAR_sec_user_agent: ${{ secrets.SEC_USER_AGENT }}
 
+  # Referenced, not used. The runner redacts a registered secret wherever it appears in a log,
+  # including inside a larger string — so naming it here masks the account id in every role ARN
+  # and bucket name these jobs print, without a masking step.
+  #
+  # An ::add-mask:: step cannot do this: the runner echoes a step's script before running it,
+  # so a script containing ${{ vars.…ROLE_ARN }} prints the ARN, and the account id with it, one
+  # line before the mask exists. That is exactly how the previous two attempts failed.
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -51,20 +60,12 @@ jobs:
       # alone, which keeps the required check reporting instead of hanging.
       SKIP_AWS: ${{ github.actor == 'dependabot[bot]' }}
     steps:
+      # persist-credentials: false — this workflow runs pull-request code (fmt, tests, plan),
+      # and a checkout that leaves the job's token in .git/config puts it within reach of that
+      # code. Nothing here pushes, so the credential has no reason to persist.
       - uses: actions/checkout@v7
-
-      # After checkout, before configure-aws-credentials — which echoes the role ARN, and with
-      # it the account id, from its `with:` block. It cannot go first: the job's
-      # working-directory does not exist until checkout runs, and the step fails to start.
-      # Repository variables are readable here even on Dependabot runs, where secrets are not.
-      #
-      # Block scalar because `cut -d:` puts a colon-space inside the scalar, and that makes the
-      # whole workflow unparseable — which fails silently: GitHub never runs it, so a required
-      # check never reports and the pull request blocks with nothing to click.
-      - name: Mask the account id in logs
-        run: |
-          acct=$(echo '${{ vars.AWS_TOFU_APPLY_ROLE_ARN }}' | cut -d':' -f5)
-          echo "::add-mask::$acct"
+        with:
+          persist-credentials: false
 
       - uses: opentofu/setup-opentofu@v2
         with:
@@ -77,10 +78,23 @@ jobs:
         run: python3 tests/test_handler.py
         working-directory: infra/modules/api
 
-      # Prints only the identifying claims, never the token. GitHub is moving the subject claim
-      # to a form that embeds numeric ids, and a mismatch here surfaces as an opaque
-      # "Not authorized to perform sts:AssumeRoleWithWebIdentity" from the next step.
+      # Dependabot gets a real check, not just a formatting pass: validate needs an initialised
+      # directory, and -backend=false initialises providers and modules without touching remote
+      # state or needing credentials.
+      - name: Init without the backend
+        if: env.SKIP_AWS == 'true'
+        run: tofu init -backend=false
+
+      # Skipped for Dependabot along with the rest of the AWS path, so no AWS-audience token is
+      # ever requested on a run that has no business assuming a role.
+      #
+      # Residual, stated rather than hidden: `id-token: write` is a static job permission, so a
+      # Dependabot run is still *able* to mint one. The role it could reach is the read-only
+      # plan role, and fork pull requests get no id-token at all. Removing the capability
+      # outright means splitting this into two jobs, which would change which check is required
+      # and reopen the "required check never reports" trap that this pull request exists to fix.
       - name: Show OIDC subject claim
+        if: env.SKIP_AWS != 'true'
         run: |
           token=$(curl -sH "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
@@ -92,11 +106,19 @@ jobs:
           role-to-assume: ${{ github.event_name == 'pull_request' && vars.AWS_TOFU_PLAN_ROLE_ARN || vars.AWS_TOFU_APPLY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
+      # Values reach the shell through env rather than being interpolated into the script, so
+      # nothing repository-controlled is expanded into executable text.
       - name: Init
         if: env.SKIP_AWS != 'true'
-        run: tofu init -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" -backend-config="region=${{ vars.AWS_REGION }}"
-      - if: env.SKIP_AWS != 'true'
-        run: tofu validate
+        env:
+          STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+          REGION: ${{ vars.AWS_REGION }}
+        run: tofu init -backend-config="bucket=$STATE_BUCKET" -backend-config="region=$REGION"
+
+      # Ungated: both paths have initialised by now, and a configuration error should fail a
+      # dependency bump too.
+      - run: tofu validate
+
       - if: env.SKIP_AWS != 'true'
         run: tofu plan -no-color -out=tfplan
 
@@ -137,20 +159,12 @@ jobs:
       run:
         working-directory: infra/envs/prod
     steps:
+      # persist-credentials: false — this workflow runs pull-request code (fmt, tests, plan),
+      # and a checkout that leaves the job's token in .git/config puts it within reach of that
+      # code. Nothing here pushes, so the credential has no reason to persist.
       - uses: actions/checkout@v7
-
-      # After checkout, before configure-aws-credentials — which echoes the role ARN, and with
-      # it the account id, from its `with:` block. It cannot go first: the job's
-      # working-directory does not exist until checkout runs, and the step fails to start.
-      # Repository variables are readable here even on Dependabot runs, where secrets are not.
-      #
-      # Block scalar because `cut -d:` puts a colon-space inside the scalar, and that makes the
-      # whole workflow unparseable — which fails silently: GitHub never runs it, so a required
-      # check never reports and the pull request blocks with nothing to click.
-      - name: Mask the account id in logs
-        run: |
-          acct=$(echo '${{ vars.AWS_TOFU_APPLY_ROLE_ARN }}' | cut -d':' -f5)
-          echo "::add-mask::$acct"
+        with:
+          persist-credentials: false
 
       - uses: opentofu/setup-opentofu@v2
         with:
@@ -170,7 +184,10 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Init
-        run: tofu init -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" -backend-config="region=${{ vars.AWS_REGION }}"
+        env:
+          STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+          REGION: ${{ vars.AWS_REGION }}
+        run: tofu init -backend-config="bucket=$STATE_BUCKET" -backend-config="region=$REGION"
 
       # Planned here rather than reusing the plan job's file: that job may have run under the
       # read-only role, and a plan is only as good as the state it locked.
