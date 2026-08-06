@@ -16,7 +16,11 @@ RUN apt-get update \
  && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" > /etc/apt/sources.list.d/nodesource.list \
  && apt-get update \
  && apt-get install -y --no-install-recommends nodejs \
- && npm install -g @anthropic-ai/claude-code \
+ # Pinned so the image is reproducible. Unpinned, every build resolves a different transitive
+ # tree and reports a different set of CVEs, which makes any accepted-findings list obsolete
+ # the moment it is written. Bump deliberately; Dependabot cannot see this (it is a command,
+ # not a manifest).
+ && npm install -g @anthropic-ai/claude-code@2.1.223 \
  # Two tempting changes are deliberately absent, both verified broken by building the image:
  #
  #   npm install -g npm@latest — the writer then fails at startup with "claude native binary

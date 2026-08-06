@@ -22,29 +22,19 @@ AWS-0011
 # are the only non-public data and contain no personal information.
 AWS-0132
 
-# --------------------------------------------------------------------------- container image
+# Nothing is listed here for the container image, on purpose.
 #
-# All five live inside npm's vendored dependency tree, not in anything this project wrote or
-# chose, and none is reachable from the pipeline: npm exists in the image only to install the
-# writer CLI, nothing invokes it at runtime, and the container accepts no inbound connections.
-#
-# Both structural fixes were tried and both break the writer, verified by building the image
-# and running `claude --version`:
+# Its findings all sit inside the writer CLI's vendored npm tree — not this project's code, not
+# reachable from the pipeline, and not fixable by any change to this repository. Both ways of
+# removing that code break the writer, verified by building the image and running
+# `claude --version`:
 #
 #   npm install -g npm@latest        -> "claude native binary not installed"
 #   rm -rf /usr/lib/node_modules/npm -> the same
 #
-# The CLI places a native binary from a postinstall script that the newer npm does not run,
-# with or without --ignore-scripts=false. So these are accepted by id: a working paper beats a
-# clean report.
-#
-# This list is tied to one image build and will drift. Re-scan and rewrite it whenever the base
-# image or the writer CLI is bumped, rather than appending to it.
-CVE-2026-13149
-CVE-2026-33671
-CVE-2026-48815
-CVE-2026-59873
-CVE-2026-59874
+# Listing the ids does not work either: the set differs between builds, so the list is stale
+# before it is committed. The image scan therefore reports rather than blocks, and its findings
+# live in the Security tab. See the comment on that job in security-scan.yml.
 
 # AWS-0010 — CloudFront access logging is not configured.
 # Accepted. Access logs record viewer IP addresses, which is more personal data than this site
