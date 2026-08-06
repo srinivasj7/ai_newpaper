@@ -13,6 +13,10 @@ name: mobile-ios
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "JS bundle version to bake in (semver, e.g. 1.0.0). OTA bundles must be strictly newer than this — keep it on the same scheme."
+        required: true
 
 permissions:
   contents: read
@@ -41,7 +45,7 @@ jobs:
         env:
           VITE_DATA_BASE: ${{ vars.MOBILE_DATA_BASE }}
           VITE_API_BASE: ${{ vars.MOBILE_API_BASE }}
-          VITE_APP_VERSION: ${{ github.run_number }}
+          VITE_APP_VERSION: ${{ inputs.version }}
           VITE_SITE_OWNER_URL: ${{ vars.SITE_OWNER_URL }}
 
       - name: Capacitor sync

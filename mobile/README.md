@@ -102,9 +102,11 @@ than the last). It builds the web bundle with the absolute bases, zips it, uploa
 `latest.json`, and invalidates the manifest. Only the web bundle rides OTA — native changes
 (anything in `android/`/`ios/`, or a new plugin) require a normal store build + submission.
 
-**Version discipline:** keep the OTA `version`, the native `versionCode`/`CFBundleVersion`, and the
-store build coherent so OTA never serves a bundle that assumes a newer native shell than an installed
-app has.
+**Version discipline:** all three workflows take a semver `version` input that becomes
+`VITE_APP_VERSION` — the JS bundle version `bootstrap.js` compares. Use one scheme everywhere: an
+OTA `version` must be strictly newer than the `version` baked into the store build it updates, or the
+device keeps the bundled copy (and a lower OTA version is ignored, never a downgrade). Keep this
+separate from the native `versionCode`/`CFBundleVersion`, which only change on a store resubmission.
 
 ## Signing (CI)
 
