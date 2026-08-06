@@ -103,6 +103,29 @@ class OptionsBlock(Contract):
     ideas: list[OptionIdea] = Field(default_factory=list)
 
 
+ReleaseStatus = Literal["confirmed", "delayed", "moved", "rumoured", "released"]
+ReleaseWindow = Literal["theatrical", "streaming", "both", "festival"]
+
+
+class MovieRelease(Contract):
+    """One dated release. `date` stays a string: studios announce months and quarters as often
+    as days, and forcing those into a real date would invent precision that was never stated."""
+
+    title: str
+    studio: str = ""
+    date: str = ""
+    window: ReleaseWindow = "theatrical"
+    status: ReleaseStatus = "confirmed"
+    note: str = ""
+    source_url: str | None = Field(default=None, alias="sourceUrl")
+
+
+class MoviesBlock(Contract):
+    updated: str = "weekly"
+    summary: str = ""
+    releases: list[MovieRelease] = Field(default_factory=list)
+
+
 class PipelineInfo(Contract):
     candidates: list[str] = Field(default_factory=list)
     judge: str | None = None
@@ -117,6 +140,7 @@ class Edition(Contract):
     stories: list[Story] = Field(default_factory=list)
     stocks: StocksBlock | None = None
     options: OptionsBlock | None = None
+    movies: MoviesBlock | None = None
 
     def to_contract(self) -> dict:
         return self.model_dump(by_alias=True, exclude_none=False)
@@ -138,9 +162,11 @@ class ManifestEntry(Contract):
     story_count: int = Field(alias="storyCount")
     has_stocks: bool = Field(alias="hasStocks")
     has_options: bool = Field(alias="hasOptions")
+    has_movies: bool = Field(default=False, alias="hasMovies")
     candidate_count: int | None = Field(default=None, alias="candidateCount")
     stocks: SnapshotSummary | None = None
     options: SnapshotSummary | None = None
+    movies: SnapshotSummary | None = None
 
 
 def summarize(edition: Edition) -> ManifestEntry:
@@ -157,6 +183,7 @@ def summarize(edition: Edition) -> ManifestEntry:
         storyCount=len(edition.stories) + (1 if edition.lead else 0),
         hasStocks=edition.stocks is not None,
         hasOptions=edition.options is not None,
+        hasMovies=edition.movies is not None,
         candidateCount=len(edition.pipeline.candidates) or None,
         stocks=(
             SnapshotSummary(
@@ -170,6 +197,15 @@ def summarize(edition: Edition) -> ManifestEntry:
         options=(
             SnapshotSummary(count=len(edition.options.ideas), lean=lean(edition.options.ideas))
             if edition.options
+            else None
+        ),
+        # Movies have no bullish/bearish lean; the highlight is what is actually dated soon.
+        movies=(
+            SnapshotSummary(
+                count=len(edition.movies.releases),
+                highConviction=[r.title for r in edition.movies.releases if r.status == "confirmed"][:3],
+            )
+            if edition.movies
             else None
         ),
     )

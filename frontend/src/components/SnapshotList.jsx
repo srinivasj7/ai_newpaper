@@ -5,25 +5,31 @@ import { archiveDate } from "../format.js";
  * so the tab costs one fetch, not one per edition; when an older manifest lacks them we still
  * offer the row, just without the one-line summary.
  */
+const FLAG = { stocks: "hasStocks", options: "hasOptions", movies: "hasMovies" };
+const NOUN = { stocks: "picks tracked", options: "directional ideas", movies: "dated releases" };
+const HEADING = { stocks: "snapshots", options: "sheets", movies: "calendars" };
+const EMPTY = { stocks: "Stocks snapshot", options: "Options sheet", movies: "Release calendar" };
+
 export default function SnapshotList({ entries, currentDate, kind, onOpen }) {
-  const flag = kind === "stocks" ? "hasStocks" : "hasOptions";
-  const past = entries.filter((e) => e.date !== currentDate && e[flag]);
+  const past = entries.filter((e) => e.date !== currentDate && e[FLAG[kind]]);
   if (!past.length) return null;
 
-  const noun = kind === "stocks" ? "picks tracked" : "directional ideas";
+  const noun = NOUN[kind];
 
   return (
     <div className="dc-snaps">
       <div className="dc-section-h">
-        <span>Past {kind === "stocks" ? "snapshots" : "sheets"}</span>
+        <span>Past {HEADING[kind]}</span>
       </div>
       <ul className="dc-arch">
         {past.map((e) => {
           const s = e[kind];
           const parts = [];
-          parts.push(s?.count != null ? `${s.count} ${noun}` : kind === "stocks" ? "Stocks snapshot" : "Options sheet");
+          parts.push(s?.count != null ? `${s.count} ${noun}` : EMPTY[kind]);
           if (s?.lean) parts.push(`lean ${s.lean}`);
-          if (s?.highConviction?.length) parts.push(`${s.highConviction.join(", ")} high-conviction`);
+          if (s?.highConviction?.length) {
+            parts.push(kind === "movies" ? s.highConviction.join(", ") : `${s.highConviction.join(", ")} high-conviction`);
+          }
           return (
             <li key={e.date}>
               <button onClick={() => onOpen(e.date)}>

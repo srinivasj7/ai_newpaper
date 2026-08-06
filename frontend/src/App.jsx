@@ -4,6 +4,7 @@ import ErrorBanner from "./components/ErrorBanner.jsx";
 import ArchiveView from "./views/ArchiveView.jsx";
 import DeskView from "./views/DeskView.jsx";
 import DisclaimerView from "./views/DisclaimerView.jsx";
+import MoviesView from "./views/MoviesView.jsx";
 import EditionView from "./views/EditionView.jsx";
 import OptionsView from "./views/OptionsView.jsx";
 import StocksView from "./views/StocksView.jsx";
@@ -21,6 +22,7 @@ const TABS = [
   ["options", "Options"],
   ["archive", "Archive"],
   ["desk", "Settings"],
+  ["movies", "Movies"],
 ];
 
 export default function App() {
@@ -111,6 +113,9 @@ export default function App() {
                 importedCount={importedCount}
                 onClearImported={clearImported}
               />
+            )}
+            {view === "movies" && (
+              <MoviesView edition={current} entries={entries} onOpenDate={openDate} />
             )}
             {view === "legal" && <DisclaimerView />}
           </>
