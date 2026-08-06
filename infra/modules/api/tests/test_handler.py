@@ -12,6 +12,9 @@ import types
 from pathlib import Path
 
 puts = []
+reads = []
+
+TOKEN = "test-token-not-a-real-secret-01"
 
 
 class _S3:
@@ -20,21 +23,29 @@ class _S3:
         return {}
 
 
+class _SSM:
+    def get_parameter(self, **kw):
+        reads.append(kw)
+        return {"Parameter": {"Value": TOKEN}}
+
+
 _boto3 = types.ModuleType("boto3")
-_boto3.client = lambda *_a, **_k: _S3()
+_boto3.client = lambda service, *_a, **_k: _SSM() if service == "ssm" else _S3()
 sys.modules["boto3"] = _boto3
 
 os.environ.setdefault("BUCKET", "test-bucket")
 os.environ.setdefault("DATA_PREFIX", "data/")
+os.environ.setdefault("ADMIN_TOKEN_PARAMETER", "/test/admin-token")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lambda"))
 
 import handler  # noqa: E402
 
 
-def call(path, method="POST", body=None):
+def call(path, method="POST", body=None, token=TOKEN):
     event = {
         "rawPath": path,
         "requestContext": {"http": {"method": method}},
+        "headers": {} if token is None else {"x-dtb-token": token},
         "body": None if body is None else json.dumps(body),
     }
     res = handler.handler(event, None)
@@ -97,8 +108,44 @@ check(
 call("/api/config", body={"topics": [{"slug": "ai", "weight": "urgent"}]})
 check("unknown weight falls back", json.loads(puts[-1]["Body"])["topics"][0]["weight"], "normal")
 
+# --- the write gate
+vote = {"storyId": "e27-s1", "vote": "keep"}
+check("feedback without a token", call("/api/feedback", body=vote, token=None)[0], 401)
+check("feedback with the wrong token", call("/api/feedback", body=vote, token="wrong")[0], 401)
+check("config without a token", call("/api/config", body={"topics": [{"slug": "ai"}]}, token=None)[0], 401)
+check("a near miss is still 401", call("/api/config", body={"topics": [{"slug": "ai"}]}, token=TOKEN[:-1])[0], 401)
+
+before = len(puts)
+call("/api/feedback", body=vote, token=None)
+check("a rejected write stores nothing", len(puts), before)
+
+check("health stays open", call("/api/health", "GET", token=None)[0], 200)
+
+check(
+    "bearer form accepted",
+    handler.handler(
+        {
+            "rawPath": "/api/feedback",
+            "requestContext": {"http": {"method": "POST"}},
+            "headers": {"authorization": f"Bearer {TOKEN}"},
+            "body": json.dumps(vote),
+        },
+        None,
+    )["statusCode"],
+    200,
+)
+
+# The parameter is fetched once and cached for the life of the container, not on every request.
+check("the secret is read once per container", len(reads), 1)
+
+check("preflight advertises the auth header", "x-dtb-token" in handler._preflight_headers(None)["access-control-allow-headers"], True)
+
 # --- body handling
-raw = {"rawPath": "/api/config", "requestContext": {"http": {"method": "POST"}}}
+raw = {
+    "rawPath": "/api/config",
+    "requestContext": {"http": {"method": "POST"}},
+    "headers": {"x-dtb-token": TOKEN},
+}
 check("non-JSON body", handler.handler({**raw, "body": "{not json"}, None)["statusCode"], 400)
 check("oversized body", handler.handler({**raw, "body": "x" * (300 * 1024)}, None)["statusCode"], 400)
 

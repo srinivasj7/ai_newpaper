@@ -69,6 +69,14 @@ data "aws_iam_policy_document" "api" {
     resources = ["${var.bucket_arn}/${var.data_prefix}config/config.json"]
   }
 
+  # One parameter, read-only. The secret never reaches the task definition, the plan output or
+  # state — only this grant, and the function reads it for itself at cold start.
+  statement {
+    sid       = "ReadTheAdminToken"
+    actions   = ["ssm:GetParameter"]
+    resources = [var.admin_token_parameter_arn]
+  }
+
   statement {
     sid       = "Logs"
     actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
@@ -100,9 +108,11 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      BUCKET          = var.bucket_id
-      DATA_PREFIX     = var.data_prefix
-      ALLOWED_ORIGINS = join(",", var.allowed_origins)
+      BUCKET      = var.bucket_id
+      DATA_PREFIX = var.data_prefix
+      # The parameter's name, not its value.
+      ADMIN_TOKEN_PARAMETER = var.admin_token_parameter
+      ALLOWED_ORIGINS       = join(",", var.allowed_origins)
     }
   }
 

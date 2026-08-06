@@ -118,6 +118,9 @@ module "api" {
   bucket_arn      = module.data.bucket_arn
   data_prefix     = local.data_prefix
   allowed_origins = var.app_origins
+
+  admin_token_parameter     = var.admin_token_parameter
+  admin_token_parameter_arn = "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter${var.admin_token_parameter}"
 }
 
 module "site" {

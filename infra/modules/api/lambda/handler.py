@@ -11,6 +11,7 @@ Everything is validated against the contracts in CLAUDE.md before it touches S3.
 The bucket is versioned, so a bad config push is undone by restoring a version.
 """
 
+import hmac
 import json
 import os
 import re
@@ -20,6 +21,7 @@ from datetime import datetime, timezone
 import boto3
 
 s3 = boto3.client("s3")
+ssm = boto3.client("ssm")
 
 BUCKET = os.environ["BUCKET"]
 DATA_PREFIX = os.environ.get("DATA_PREFIX", "data/")
@@ -41,8 +43,47 @@ WEIGHTS = ("high", "normal", "low")
 TRUSTS = ("preferred", "allowed", "blocked")
 
 
+# The shared secret guarding every write. Read from Parameter Store at cold start and cached
+# for the life of the container, so it is never an environment variable, never in the task
+# definition, and never in OpenTofu state — a `data.aws_ssm_parameter` would put it in all three.
+ADMIN_TOKEN_PARAMETER = os.environ.get("ADMIN_TOKEN_PARAMETER", "")
+_admin_token: str | None = None
+
+
 class Invalid(Exception):
     """Client error — reported as a 400 with the offending field."""
+
+
+class Unauthorized(Exception):
+    """Missing or wrong credential — reported as a 401, with no detail about which."""
+
+
+def _expected_token() -> str:
+    global _admin_token
+    if _admin_token is None:
+        if not ADMIN_TOKEN_PARAMETER:
+            raise RuntimeError("ADMIN_TOKEN_PARAMETER is not configured")
+        _admin_token = ssm.get_parameter(Name=ADMIN_TOKEN_PARAMETER, WithDecryption=True)["Parameter"]["Value"].strip()
+    return _admin_token
+
+
+def _authorize(event) -> None:
+    """Every write needs the shared secret.
+
+    Compared with hmac.compare_digest rather than ==, so the time taken does not depend on how
+    many leading characters matched. The secret is 32 characters from a 64-symbol alphabet —
+    about 192 bits — so guessing is not a practical attack; constant-time comparison closes the
+    side channel that would otherwise let an attacker learn it a character at a time.
+    """
+    headers = event.get("headers") or {}
+    supplied = (headers.get("x-dtb-token") or headers.get("X-DTB-Token") or "").strip()
+    if not supplied:
+        auth = headers.get("authorization") or headers.get("Authorization") or ""
+        if auth.lower().startswith("bearer "):
+            supplied = auth[7:].strip()
+
+    if not supplied or not hmac.compare_digest(supplied, _expected_token()):
+        raise Unauthorized()
 
 
 def handler(event, _context):
@@ -75,6 +116,10 @@ def _route(method, path, event):
         if method != "POST":
             return _reply(405, {"error": "method not allowed"})
 
+        # Before the body is read, let alone written anywhere: every write is gated, including
+        # feedback. Health stays open — it carries nothing and is what tells you the API is up.
+        _authorize(event)
+
         body = _body(event)
 
         if path.endswith("/feedback"):
@@ -84,6 +129,10 @@ def _route(method, path, event):
 
         return _reply(404, {"error": "no such route", "path": path})
 
+    except Unauthorized:
+        # Deliberately identical for a missing and a wrong token: distinguishing them tells an
+        # attacker which half of the problem they have solved.
+        return _reply(401, {"error": "unauthorized"})
     except Invalid as e:
         return _reply(400, {"error": str(e)})
     except Exception as e:  # noqa: BLE001 — never leak a stack trace to the browser
@@ -103,7 +152,7 @@ def _allowed_origin(event):
 def _preflight_headers(origin):
     headers = {
         "access-control-allow-methods": "POST, OPTIONS",
-        "access-control-allow-headers": "content-type, x-amz-content-sha256",
+        "access-control-allow-headers": "content-type, x-amz-content-sha256, x-dtb-token",
         "access-control-max-age": "600",
         "vary": "Origin",
     }
