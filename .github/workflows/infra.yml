@@ -51,19 +51,20 @@ jobs:
       # alone, which keeps the required check reporting instead of hanging.
       SKIP_AWS: ${{ github.actor == 'dependabot[bot]' }}
     steps:
-      # First, before anything can print it. The account id appears in the role ARN that
-      # configure-aws-credentials echoes from its `with:` block, so masking after that step —
-      # or from `sts get-caller-identity`, which needs credentials — is already too late.
-      # Repository variables are available here even on Dependabot runs, where secrets are not.
+      - uses: actions/checkout@v7
+
+      # After checkout, before configure-aws-credentials — which echoes the role ARN, and with
+      # it the account id, from its `with:` block. It cannot go first: the job's
+      # working-directory does not exist until checkout runs, and the step fails to start.
+      # Repository variables are readable here even on Dependabot runs, where secrets are not.
+      #
+      # Block scalar because `cut -d:` puts a colon-space inside the scalar, and that makes the
+      # whole workflow unparseable — which fails silently: GitHub never runs it, so a required
+      # check never reports and the pull request blocks with nothing to click.
       - name: Mask the account id in logs
-        # Block scalar: the command contains `cut -d:` and a bare `key: value` colon inside a
-        # plain YAML scalar makes the whole workflow unparseable — which is silent, because
-        # GitHub then never runs it and the required check simply never reports.
         run: |
           acct=$(echo '${{ vars.AWS_TOFU_APPLY_ROLE_ARN }}' | cut -d':' -f5)
           echo "::add-mask::$acct"
-
-      - uses: actions/checkout@v7
 
       - uses: opentofu/setup-opentofu@v2
         with:
@@ -136,19 +137,20 @@ jobs:
       run:
         working-directory: infra/envs/prod
     steps:
-      # First, before anything can print it. The account id appears in the role ARN that
-      # configure-aws-credentials echoes from its `with:` block, so masking after that step —
-      # or from `sts get-caller-identity`, which needs credentials — is already too late.
-      # Repository variables are available here even on Dependabot runs, where secrets are not.
+      - uses: actions/checkout@v7
+
+      # After checkout, before configure-aws-credentials — which echoes the role ARN, and with
+      # it the account id, from its `with:` block. It cannot go first: the job's
+      # working-directory does not exist until checkout runs, and the step fails to start.
+      # Repository variables are readable here even on Dependabot runs, where secrets are not.
+      #
+      # Block scalar because `cut -d:` puts a colon-space inside the scalar, and that makes the
+      # whole workflow unparseable — which fails silently: GitHub never runs it, so a required
+      # check never reports and the pull request blocks with nothing to click.
       - name: Mask the account id in logs
-        # Block scalar: the command contains `cut -d:` and a bare `key: value` colon inside a
-        # plain YAML scalar makes the whole workflow unparseable — which is silent, because
-        # GitHub then never runs it and the required check simply never reports.
         run: |
           acct=$(echo '${{ vars.AWS_TOFU_APPLY_ROLE_ARN }}' | cut -d':' -f5)
           echo "::add-mask::$acct"
-
-      - uses: actions/checkout@v7
 
       - uses: opentofu/setup-opentofu@v2
         with:
