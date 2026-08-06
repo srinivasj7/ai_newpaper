@@ -12,6 +12,7 @@ import { load, save } from "./storage.js";
  */
 export function useFeedback() {
   const [feedback, setFeedback] = useState(() => load(K.feedback, {}));
+  const [needsUnlock, setNeedsUnlock] = useState(false);
 
   useEffect(() => {
     const outbox = load(K.outbox, []);
@@ -23,7 +24,12 @@ export function useFeedback() {
           left = left.filter((e) => e !== event);
         }),
       ),
-    ).then(() => save(K.outbox, left));
+    ).then((results) => {
+      save(K.outbox, left);
+      // Locked, not offline: the queue is intact but no amount of retrying will empty it, so
+      // say so rather than flushing silently into a wall on every load.
+      if (results.some((r) => r.status === "rejected" && r.reason?.unauthorized)) setNeedsUnlock(true);
+    });
   }, []);
 
   const vote = useCallback((story, choice, editionDate) => {
@@ -44,10 +50,18 @@ export function useFeedback() {
       };
       next[story.id] = event;
       save(K.feedback, next);
-      postFeedback(event).catch(() => save(K.outbox, [...load(K.outbox, []), event]));
+      postFeedback(event).catch((err) => {
+        // The vote still shows locally either way. A 401 is queued too — unlock, reload, and it
+        // flushes — but it also raises the dialog, because otherwise the vote looks recorded
+        // when nothing has left the browser.
+        save(K.outbox, [...load(K.outbox, []), event]);
+        if (err?.unauthorized) setNeedsUnlock(true);
+      });
       return next;
     });
   }, []);
 
-  return { feedback, vote };
+  const clearNeedsUnlock = useCallback(() => setNeedsUnlock(false), []);
+
+  return { feedback, vote, needsUnlock, clearNeedsUnlock };
 }

@@ -13,7 +13,7 @@ const DEBOUNCE_MS = 800;
  */
 export function useConfig() {
   const [config, setConfigState] = useState(() => normalizeConfig(load(K.config, DEFAULT_CONFIG)));
-  const [saveState, setSaveState] = useState("idle"); // idle | saving | saved | failed
+  const [saveState, setSaveState] = useState("idle"); // idle | saving | saved | failed | locked
   const timer = useRef(null);
   const pending = useRef(null);
 
@@ -42,7 +42,9 @@ export function useConfig() {
     setSaveState("saving");
     postConfig({ ...next, version: (next.version ?? 1) + 1, exportedAt: new Date().toISOString() })
       .then(() => setSaveState("saved"))
-      .catch(() => setSaveState("failed"));
+      // "Locked" is not "failed": the edit is intact locally and one unlock away from saving,
+      // which is a different thing to tell someone than "the save broke".
+      .catch((err) => setSaveState(err?.unauthorized ? "locked" : "failed"));
   }, []);
 
   const setConfig = useCallback(

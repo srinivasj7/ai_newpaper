@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react";
 import Story from "../components/Story.jsx";
 import { longDate } from "../format.js";
 
-export default function EditionView({ edition, config, feedback, onVote }) {
+export default function EditionView({ edition, config, feedback, onVote, isLatest = true }) {
   const topicLabel = useCallback(
     (slug) => config.topics.find((t) => t.slug === slug)?.label || slug?.toUpperCase() || "GENERAL",
     [config.topics],
@@ -23,6 +23,9 @@ export default function EditionView({ edition, config, feedback, onVote }) {
       <div className="dc-edhead">
         <span>
           <b>{longDate(edition.date)}</b>
+          {/* Opened from the archive, so say so — the section is titled "Front Page" either way,
+              and without this an old paper reads as this morning's. */}
+          {!isLatest && <em className="dc-back-issue"> · back issue</em>}
         </span>
         <span>
           No. {edition.edition} · judged by {edition.pipeline.judge || "—"}

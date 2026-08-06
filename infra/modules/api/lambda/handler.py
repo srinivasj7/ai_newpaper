@@ -77,6 +77,11 @@ def _authorize(event) -> None:
     """
     headers = event.get("headers") or {}
     supplied = (headers.get("x-dtb-token") or headers.get("X-DTB-Token") or "").strip()
+
+    # Bearer is accepted as a convenience for calling the Function URL directly with signed
+    # credentials. It is not the path the site uses, and it must not be: through CloudFront the
+    # Authorization header carries OAC's own SigV4 signature, so sending a bearer token there
+    # replaces the signature and the origin refuses the request before this code runs.
     if not supplied:
         auth = headers.get("authorization") or headers.get("Authorization") or ""
         if auth.lower().startswith("bearer "):
@@ -119,6 +124,12 @@ def _route(method, path, event):
         # Before the body is read, let alone written anywhere: every write is gated, including
         # feedback. Health stays open — it carries nothing and is what tells you the API is up.
         _authorize(event)
+
+        # Authorization succeeded, so the secret is right. Nothing is read or written: this
+        # exists so the settings panel can say "wrong passphrase" when it is typed, rather
+        # than silently much later when a save fails.
+        if path.endswith("/session"):
+            return _reply(200, {"ok": True})
 
         body = _body(event)
 

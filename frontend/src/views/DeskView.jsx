@@ -6,9 +6,21 @@ const SAVE_TEXT = {
   saving: "Saving…",
   saved: "Saved",
   failed: "Save failed — changes kept in this browser",
+  locked: "Locked — unlock to publish this change",
 };
 
-export default function DeskView({ config, setConfig, saveState, feedback, onImport, importedCount, onClearImported }) {
+export default function DeskView({
+  config,
+  setConfig,
+  saveState,
+  feedback,
+  onImport,
+  importedCount,
+  onClearImported,
+  unlocked,
+  onUnlock,
+  onLock,
+}) {
   const [topicName, setTopicName] = useState("");
   const [topicWeight, setTopicWeight] = useState("normal");
   const [srcDomain, setSrcDomain] = useState("");
@@ -90,6 +102,19 @@ export default function DeskView({ config, setConfig, saveState, feedback, onImp
 
   return (
     <div className="dc-desk">
+      <h3>Editing</h3>
+      <p className="hint">
+        Anyone can read this paper; only someone with the passphrase can change what it publishes. Topics, sources, and
+        story votes all steer tomorrow&rsquo;s edition, so all three are behind it. Edits made while locked stay in this
+        browser and are sent once you unlock.
+      </p>
+      <div className="dc-add">
+        <span className={`dc-save ${unlocked ? "saved" : ""}`}>{unlocked ? "Unlocked" : "Locked"}</span>
+        <button className="dc-btn ghost" onClick={unlocked ? onLock : onUnlock}>
+          {unlocked ? "Lock" : "Unlock"}
+        </button>
+      </div>
+
       <h3>Publication</h3>
       <p className="hint">The name shown in the masthead.</p>
       <div className="dc-add">

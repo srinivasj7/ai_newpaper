@@ -121,6 +121,12 @@ check("a rejected write stores nothing", len(puts), before)
 
 check("health stays open", call("/api/health", "GET", token=None)[0], 200)
 
+check("session confirms a good token", call("/api/session", body={})[0], 200)
+check("session rejects a bad one", call("/api/session", body={}, token="wrong")[0], 401)
+before = len(puts)
+call("/api/session", body={})
+check("session writes nothing", len(puts), before)
+
 check(
     "bearer form accepted",
     handler.handler(

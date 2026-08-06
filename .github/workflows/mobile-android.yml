@@ -51,6 +51,7 @@ jobs:
           VITE_API_BASE: ${{ vars.MOBILE_API_BASE }}
           VITE_APP_VERSION: ${{ inputs.version }}
           VITE_SITE_OWNER_URL: ${{ vars.SITE_OWNER_URL }}
+          VITE_REPO_URL: ${{ vars.REPO_URL }}
 
       - name: Capacitor sync
         working-directory: mobile

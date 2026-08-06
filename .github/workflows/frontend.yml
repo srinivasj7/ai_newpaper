@@ -34,11 +34,12 @@ jobs:
 
       - run: npm ci
 
-      # The contact URL is account-specific and stays out of the repo; unset simply hides
-      # the contact line on the Terms & Disclaimer page.
+      # Both URLs are account-specific and stay out of the repo; unset simply hides the control
+      # that would link to them.
       - run: npm run build
         env:
           VITE_SITE_OWNER_URL: ${{ vars.SITE_OWNER_URL }}
+          VITE_REPO_URL: ${{ vars.REPO_URL }}
 
       # Fixtures are dev-server only. If they ever reach dist/, they would shadow the
       # real pipeline output on S3 — fail loudly instead.
