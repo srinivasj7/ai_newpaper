@@ -14,6 +14,12 @@ variable "default_branch" {
   default     = "main"
 }
 
+variable "deploy_environment" {
+  description = "GitHub deployment environment used by gated jobs. A job declaring it is identified by it in the OIDC subject claim, not by its branch."
+  type        = string
+  default     = "prod"
+}
+
 variable "create_oidc_provider" {
   description = "false if the account already has a GitHub OIDC provider."
   type        = bool

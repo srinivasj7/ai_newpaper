@@ -49,14 +49,31 @@ resource "aws_iam_openid_connect_provider" "github" {
  * A repository can emit either, so both shapes are accepted. Only the numeric ids are
  * wildcarded — the owner and repository names stay pinned, and so does the trailing claim
  * that distinguishes a push to the default branch from a pull request.
+ *
+ * The trailing claim also changes with the job: a job that declares `environment: prod` is
+ * identified by that environment rather than by its branch, so the apply role must trust both
+ * forms or it can plan and never apply.
  */
 locals {
   owner = split("/", var.github_repo)[0]
   repo  = split("/", var.github_repo)[1]
 
+  # Both id shapes, for one trailing claim.
+  subjects = {
+    for name, claim in {
+      main        = "ref:refs/heads/${var.default_branch}"
+      environment = "environment:${var.deploy_environment}"
+      pull_req    = "pull_request"
+      } : name => [
+      "repo:${var.github_repo}:${claim}",
+      "repo:${local.owner}@*/${local.repo}@*:${claim}",
+    ]
+  }
+
   subject_patterns = {
-    main         = ["repo:${var.github_repo}:ref:refs/heads/${var.default_branch}", "repo:${local.owner}@*/${local.repo}@*:ref:refs/heads/${var.default_branch}"]
-    pull_request = ["repo:${var.github_repo}:pull_request", "repo:${local.owner}@*/${local.repo}@*:pull_request"]
+    # A push to the default branch, and jobs gated on the deployment environment.
+    main         = concat(local.subjects.main, local.subjects.environment)
+    pull_request = local.subjects.pull_req
   }
 }
 

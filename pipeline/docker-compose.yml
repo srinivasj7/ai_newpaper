@@ -1,0 +1,38 @@
+# The factory. Nothing here is a runtime dependency of the site — if this host is off, the
+# site simply serves yesterday's edition.
+#
+#   docker compose run --rm pipeline              # today's edition
+#   docker compose run --rm pipeline --dry-run    # everything except the S3 write
+#
+# The judge is optional: with a single writer it never runs, so `ollama` can stay stopped.
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    # GPU passthrough. Drop this block on a host without an NVIDIA card — Ollama will fall
+    # back to CPU, slowly but correctly.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  pipeline:
+    build: .
+    env_file: .env
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434/v1}
+    volumes:
+      # Claude Code's credentials, mounted read-only. Prefer CLAUDE_CODE_OAUTH_TOKEN in .env
+      # for unattended runs — an interactive session token expires within hours.
+      - ${CLAUDE_CONFIG_DIR:-~/.claude}:/home/pipeline/.claude:ro
+
+volumes:
+  ollama: {}

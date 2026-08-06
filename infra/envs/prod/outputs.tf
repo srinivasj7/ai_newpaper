@@ -49,3 +49,18 @@ output "api_function_url" {
   description = "Direct URL — should answer 403 to anything but CloudFront."
   value       = module.api.function_url
 }
+
+output "runner_repository_url" {
+  description = "Push the pipeline image here."
+  value       = try(module.runner[0].repository_url, null)
+}
+
+output "runner_log_group" {
+  description = "aws logs tail <this> --follow"
+  value       = try(module.runner[0].log_group, null)
+}
+
+output "runner_run_task_command" {
+  description = "Run today's edition by hand, with the network configuration filled in."
+  value       = try(module.runner[0].run_task_command, null)
+}
