@@ -3,7 +3,10 @@ FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    NODE_MAJOR=22
+    NODE_MAJOR=22 \
+    # npm is removed from the final image, and a self-update attempt in a read-only,
+    # unattended container would fail anyway. Pin the version by rebuilding instead.
+    DISABLE_AUTOUPDATER=1
 
 # Node is here only because the writer CLIs are node programs. curl is needed to install it.
 RUN apt-get update \
@@ -13,7 +16,22 @@ RUN apt-get update \
  && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" > /etc/apt/sources.list.d/nodesource.list \
  && apt-get update \
  && apt-get install -y --no-install-recommends nodejs \
- && npm install -g @anthropic-ai/claude-code \
+ # Pinned so the image is reproducible. Unpinned, every build resolves a different transitive
+ # tree and reports a different set of CVEs, which makes any accepted-findings list obsolete
+ # the moment it is written. Bump deliberately; Dependabot cannot see this (it is a command,
+ # not a manifest).
+ && npm install -g @anthropic-ai/claude-code@2.1.223 \
+ # Two tempting changes are deliberately absent, both verified broken by building the image:
+ #
+ #   npm install -g npm@latest — the writer then fails at startup with "claude native binary
+ #   not installed". The CLI places a native binary from a postinstall script, and the newer
+ #   npm does not run it, with or without --ignore-scripts=false --foreground-scripts.
+ #
+ #   rm -rf /usr/lib/node_modules/npm — same failure, and it is npm's vendored dependencies
+ #   (brace-expansion, ip-address, tar, undici) that carry almost every image finding.
+ #
+ # So the scanner findings are accepted by id in .trivyignore instead. A working paper beats a
+ # clean report.
  && apt-get purge -y gnupg \
  && apt-get autoremove -y \
  && rm -rf /var/lib/apt/lists/*

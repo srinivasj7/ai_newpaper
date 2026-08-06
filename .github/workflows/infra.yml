@@ -7,8 +7,6 @@ on:
       - "infra/**"
       - ".github/workflows/infra.yml"
   pull_request:
-    paths:
-      - "infra/**"
   workflow_dispatch:
 
 permissions:
