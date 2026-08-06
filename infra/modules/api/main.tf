@@ -100,8 +100,9 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      BUCKET      = var.bucket_id
-      DATA_PREFIX = var.data_prefix
+      BUCKET          = var.bucket_id
+      DATA_PREFIX     = var.data_prefix
+      ALLOWED_ORIGINS = join(",", var.allowed_origins)
     }
   }
 

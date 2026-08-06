@@ -113,10 +113,11 @@ module "data" {
 module "api" {
   source = "../../modules/api"
 
-  name        = var.project
-  bucket_id   = module.data.bucket_id
-  bucket_arn  = module.data.bucket_arn
-  data_prefix = local.data_prefix
+  name            = var.project
+  bucket_id       = module.data.bucket_id
+  bucket_arn      = module.data.bucket_arn
+  data_prefix     = local.data_prefix
+  allowed_origins = var.app_origins
 }
 
 module "site" {
@@ -129,6 +130,7 @@ module "site" {
   aliases                     = local.aliases
   acm_certificate_arn         = local.certificate_arn
   price_class                 = var.price_class
+  app_origins                 = var.app_origins
 }
 
 # The pipeline host, as a scheduled task rather than a machine. Optional: leave

@@ -210,3 +210,15 @@ table.dc-tab{border-collapse:collapse; width:100%; min-width:680px; font-size:14
   .dc-story, .dc-lead{animation:dcfade .35s ease both;}
   @keyframes dcfade{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;}}
 }
+
+/* ---------- Native safe-area insets ----------
+   Keeps content clear of the status bar / notch and the home indicator inside the Capacitor
+   WebView. These are additive: env(safe-area-inset-*) is 0 on the web, so the properties below
+   evaluate to exactly the existing values and the website is visually unchanged. Requires
+   viewport-fit=cover in index.html. */
+.dc-shell{
+  padding-left: calc(20px + env(safe-area-inset-left));
+  padding-right: calc(20px + env(safe-area-inset-right));
+}
+.dc-mast{ padding-top: calc(26px + env(safe-area-inset-top)); }
+.dc-foot{ padding-bottom: env(safe-area-inset-bottom); }

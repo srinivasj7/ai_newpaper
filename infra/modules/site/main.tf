@@ -110,6 +110,75 @@ resource "aws_cloudfront_response_headers_policy" "private" {
   }
 }
 
+/*
+ * Same hardening as `private`, plus CORS — for the JSON the mobile app reads cross-origin.
+ * Bundled in Capacitor, the app's origin is https://localhost (both platforms use the https
+ * scheme), so a plain browser GET of /data/* is a cross-origin read that the response must
+ * opt into with Access-Control-Allow-Origin. A behavior can reference only one response-headers
+ * policy, so this one carries both the noindex/hardening headers and the CORS headers, and is
+ * attached to the /data/* behaviors (and the OTA /app/* ones). The website itself is served
+ * same-origin off the default behavior, which keeps `private` and needs no CORS.
+ *
+ * The reads are simple GETs (no custom request headers), so there is no preflight to answer
+ * here — only the response needs the allow-origin header. The /api/* writes DO preflight
+ * (a custom x-amz-content-sha256 header); that is handled in the Lambda, not here, because
+ * CloudFront cannot synthesize the OPTIONS 2xx the browser needs — see modules/api.
+ */
+resource "aws_cloudfront_response_headers_policy" "data_cors" {
+  name    = "${var.name}-data-cors"
+  comment = "noindex + hardening + CORS for JSON read cross-origin by the mobile app"
+
+  custom_headers_config {
+    items {
+      header   = "X-Robots-Tag"
+      value    = "noindex, nofollow, noarchive, nosnippet, noimageindex, notranslate"
+      override = true
+    }
+  }
+
+  security_headers_config {
+    content_type_options {
+      override = true
+    }
+
+    frame_options {
+      frame_option = "DENY"
+      override     = true
+    }
+
+    referrer_policy {
+      referrer_policy = "no-referrer"
+      override        = true
+    }
+
+    strict_transport_security {
+      access_control_max_age_sec = 31536000
+      include_subdomains         = false
+      preload                    = false
+      override                   = true
+    }
+  }
+
+  cors_config {
+    origin_override                  = true
+    access_control_allow_credentials = false
+
+    access_control_allow_origins {
+      items = var.app_origins
+    }
+
+    access_control_allow_methods {
+      items = ["GET", "HEAD", "OPTIONS"]
+    }
+
+    access_control_allow_headers {
+      items = ["*"]
+    }
+
+    access_control_max_age_sec = 600
+  }
+}
+
 resource "aws_cloudfront_distribution" "site" {
   enabled             = true
   is_ipv6_enabled     = true
@@ -162,7 +231,7 @@ resource "aws_cloudfront_distribution" "site" {
     cached_methods             = ["GET", "HEAD"]
     compress                   = true
     cache_policy_id            = aws_cloudfront_cache_policy.short.id
-    response_headers_policy_id = aws_cloudfront_response_headers_policy.private.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.data_cors.id
   }
 
   ordered_cache_behavior {
@@ -173,7 +242,7 @@ resource "aws_cloudfront_distribution" "site" {
     cached_methods             = ["GET", "HEAD"]
     compress                   = true
     cache_policy_id            = aws_cloudfront_cache_policy.short.id
-    response_headers_policy_id = aws_cloudfront_response_headers_policy.private.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.data_cors.id
   }
 
   # Dated editions never change once published.
@@ -185,7 +254,34 @@ resource "aws_cloudfront_distribution" "site" {
     cached_methods             = ["GET", "HEAD"]
     compress                   = true
     cache_policy_id            = data.aws_cloudfront_cache_policy.optimized.id
-    response_headers_policy_id = aws_cloudfront_response_headers_policy.private.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.data_cors.id
+  }
+
+  # OTA update manifest: changes on every mobile release, so it is cached like the edition
+  # manifest (60s) and invalidated on publish. More specific than /app/*, so it comes first.
+  ordered_cache_behavior {
+    path_pattern               = "/app/production/latest.json"
+    target_origin_id           = local.s3_data_origin
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = aws_cloudfront_cache_policy.short.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.data_cors.id
+  }
+
+  # OTA web-bundle zips. Versioned filenames, so they are immutable and cached hard. The capgo
+  # plugin downloads these over native HTTP (no CORS needed), but the policy is shared for
+  # simplicity and does no harm.
+  ordered_cache_behavior {
+    path_pattern               = "/app/*"
+    target_origin_id           = local.s3_data_origin
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = data.aws_cloudfront_cache_policy.optimized.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.data_cors.id
   }
 
   ordered_cache_behavior {

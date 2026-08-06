@@ -138,15 +138,24 @@ data "aws_iam_policy_document" "frontend_deploy" {
     resources = ["${var.bucket_arn}/${var.site_prefix}*"]
   }
 
+  # OTA web-bundle publishing for the mobile app: the zips and the latest.json manifest under
+  # app/. No delete — bundles are immutable and old versions are pruned by the bucket lifecycle,
+  # never by CI. This is the same role and the same OIDC trust as the site deploy.
   statement {
-    sid       = "ListSitePrefix"
+    sid       = "PublishOtaBundles"
+    actions   = ["s3:PutObject", "s3:GetObject"]
+    resources = ["${var.bucket_arn}/app/*"]
+  }
+
+  statement {
+    sid       = "ListSiteAndAppPrefixes"
     actions   = ["s3:ListBucket"]
     resources = [var.bucket_arn]
 
     condition {
       test     = "StringLike"
       variable = "s3:prefix"
-      values   = ["${var.site_prefix}*", var.site_prefix, ""]
+      values   = ["${var.site_prefix}*", var.site_prefix, "app/*", "app/", ""]
     }
   }
 

@@ -24,3 +24,13 @@ variable "log_retention_days" {
   type        = number
   default     = 30
 }
+
+variable "allowed_origins" {
+  description = <<-EOT
+    Origins allowed to call the write API cross-origin (CORS). The bundled mobile app is
+    https://localhost. Same-origin browsers behind CloudFront send no Origin and are unaffected.
+    Empty disables cross-origin writes.
+  EOT
+  type        = list(string)
+  default     = ["https://localhost"]
+}
