@@ -7,8 +7,6 @@ on:
       - "pipeline/**"
       - ".github/workflows/pipeline.yml"
   pull_request:
-    paths:
-      - "pipeline/**"
   workflow_dispatch:
 
 permissions:

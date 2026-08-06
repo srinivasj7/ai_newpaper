@@ -1,0 +1,30 @@
+# Accepted infrastructure findings.
+#
+# Every entry here is a decision, not a suppression of something unexamined. Anything NOT
+# listed fails the build, which is the point: the baseline is explicit so that a new finding
+# is a real signal rather than more noise in a list nobody reads.
+#
+# Review these whenever the architecture changes.
+
+# AWS-0011 — CloudFront distribution has no WAF.
+# Accepted. This is a personal, read-mostly brief behind a distribution that serves static JSON
+# and one write endpoint, and the handover records WAF as an optional v1 non-goal. A WAF is
+# ~$5/month plus per-rule and per-request charges against a site whose entire infrastructure
+# bill is under a cent a month. The write path is already IAM-authed and reachable only through
+# CloudFront. Revisit if the site ever accepts unauthenticated writes or gets real traffic.
+AWS-0011
+
+# AWS-0132 — S3 encryption should use a customer-managed KMS key.
+# Accepted. The bucket holds published newspaper editions and public site assets: content that
+# is served to the world by design. SSE-S3 already encrypts at rest. A customer-managed key
+# adds ~$1/month plus per-request charges, and its real benefit — controlling who can decrypt —
+# is meaningless for objects intended to be readable by anyone with the URL. Feedback events
+# are the only non-public data and contain no personal information.
+AWS-0132
+
+# AWS-0010 — CloudFront access logging is not configured.
+# Accepted. Access logs record viewer IP addresses, which is more personal data than this site
+# collects anywhere else, and they cost storage indefinitely. The site is deliberately excluded
+# from indexing and has one reader. Enable this if the site is ever opened up, and set a
+# retention policy at the same time.
+AWS-0010

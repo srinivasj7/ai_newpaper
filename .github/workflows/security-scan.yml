@@ -11,8 +11,10 @@ on:
   push:
     branches: [main]
     paths: ["infra/**", "pipeline/**", ".github/workflows/security-scan.yml"]
+  # No path filter on pull requests. These checks are required to merge, and a required check
+  # that is filtered out never reports at all — it sits pending forever and blocks the pull
+  # request instead of passing it.
   pull_request:
-    paths: ["infra/**", "pipeline/**"]
   schedule:
     - cron: "43 4 * * 1"
   workflow_dispatch:
@@ -34,6 +36,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Findings fail the job. The three that exist today are accepted by name in .trivyignore
+      # with the reasoning written down, so this blocks on anything *new* rather than on a
+      # backlog — a check that is always red teaches people to ignore it.
       - name: Scan the OpenTofu configuration
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -42,9 +47,13 @@ jobs:
           format: sarif
           output: trivy-infra.sarif
           severity: CRITICAL,HIGH,MEDIUM
-          exit-code: "0" # report, never block a merge on a finding
+          trivyignores: .trivyignore
+          exit-code: "1"
 
+      # Runs even when the scan failed, so the finding is visible in the Security tab and not
+      # only in a red job log.
       - uses: github/codeql-action/upload-sarif@v4
+        if: always()
         with:
           sarif_file: trivy-infra.sarif
           category: trivy-infra
@@ -63,6 +72,8 @@ jobs:
       - name: Build the pipeline image
         run: docker build -t pipeline-scan:ci pipeline
 
+      # Only fixable CRITICAL/HIGH vulnerabilities fail: an unpatched CVE in a base image is
+      # not something a merge can fix, so blocking on it would just stop all work.
       - name: Scan it
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -71,10 +82,12 @@ jobs:
           format: sarif
           output: trivy-image.sarif
           severity: CRITICAL,HIGH
-          ignore-unfixed: true # a finding with no available patch is not actionable here
-          exit-code: "0"
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          exit-code: "1"
 
       - uses: github/codeql-action/upload-sarif@v4
+        if: always()
         with:
           sarif_file: trivy-image.sarif
           category: trivy-image
