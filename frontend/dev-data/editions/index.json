@@ -7,8 +7,23 @@
     "hasStocks": true,
     "hasOptions": true,
     "candidateCount": 3,
-    "stocks": { "count": 10, "lean": "bearish", "highConviction": [] },
-    "options": { "count": 8, "lean": "bullish" }
+    "stocks": {
+      "count": 10,
+      "lean": "bearish",
+      "highConviction": []
+    },
+    "options": {
+      "count": 8,
+      "lean": "bullish"
+    },
+    "hasMovies": true,
+    "movies": {
+      "count": 4,
+      "highConviction": [
+        "The Quiet Hours",
+        "Ridgeline"
+      ]
+    }
   },
   {
     "date": "2026-07-16",
@@ -18,7 +33,16 @@
     "hasStocks": true,
     "hasOptions": false,
     "candidateCount": 3,
-    "stocks": { "count": 3, "lean": "bullish", "highConviction": ["NVDA", "TSM", "AMAT"] }
+    "stocks": {
+      "count": 3,
+      "lean": "bullish",
+      "highConviction": [
+        "NVDA",
+        "TSM",
+        "AMAT"
+      ]
+    },
+    "hasMovies": false
   },
   {
     "date": "2026-07-14",
@@ -27,6 +51,7 @@
     "storyCount": 1,
     "hasStocks": false,
     "hasOptions": false,
-    "candidateCount": 3
+    "candidateCount": 3,
+    "hasMovies": false
   }
 ]

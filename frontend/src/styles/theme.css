@@ -148,6 +148,11 @@ pre.dc-export{font-family:var(--mono); font-size:11.5px; background:#fff;
   border:1px solid var(--rule-dark); padding:12px; margin-top:10px; overflow-x:auto;
   max-height:280px; white-space:pre-wrap; word-break:break-word;}
 
+/* Release calendar */
+.dc-movie-summary{font-size:17px; max-width:70ch; margin:14px 0 4px; padding-left:12px;
+  border-left:2px solid var(--wire);}
+.dc-tab td.tick{max-width:22ch; white-space:normal;}
+
 /* Terms & disclaimer */
 .dc-legal h4{font-family:var(--label); font-size:12px; font-weight:700; letter-spacing:.18em;
   text-transform:uppercase; margin:26px 0 6px; color:var(--ink);}

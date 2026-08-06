@@ -67,8 +67,12 @@ KNOWN_FEEDS: dict[str, tuple[str, ...]] = {
     "phoronix.com": ("https://www.phoronix.com/rss.php",),
 
     # Public-service and non-profit newsrooms: free to read, not ad-driven.
-    "bbc.co.uk": ("https://feeds.bbci.co.uk/news/business/rss.xml", "https://feeds.bbci.co.uk/news/technology/rss.xml"),
-    "npr.org": ("https://feeds.npr.org/1006/rss.xml",),
+    "bbc.co.uk": (
+        "https://feeds.bbci.co.uk/news/business/rss.xml",
+        "https://feeds.bbci.co.uk/news/technology/rss.xml",
+        "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+    ),
+    "npr.org": ("https://feeds.npr.org/1006/rss.xml", "https://feeds.npr.org/1045/rss.xml"),
     "propublica.org": ("https://www.propublica.org/feeds/propublica/main",),
 
     # First-party engineering and product announcements — useful as a source of record, and
@@ -90,6 +94,19 @@ KNOWN_FEEDS: dict[str, tuple[str, ...]] = {
     "theverge.com": ("https://www.theverge.com/rss/index.xml",),
     "semiengineering.com": ("https://semiengineering.com/feed/",),
     "wired.com": ("https://www.wired.com/feed/rss",),
+
+    # Film. Trade press first — Variety and Deadline report release dates as a matter of record,
+    # which is exactly what the movies block needs; the enthusiast titles fill in the rest.
+    # Every one was checked for a working feed, recent items, publisher links, and whether it
+    # actually carries date news: Empire, IGN and both studio newsrooms failed and are absent.
+    "variety.com": ("https://variety.com/feed/",),
+    "deadline.com": ("https://deadline.com/feed/",),
+    "hollywoodreporter.com": ("https://www.hollywoodreporter.com/feed/",),
+    "indiewire.com": ("https://www.indiewire.com/feed/",),
+    "slashfilm.com": ("https://www.slashfilm.com/feed/",),
+    "screenrant.com": ("https://screenrant.com/feed/",),
+    "collider.com": ("https://collider.com/feed/",),
+    "avclub.com": ("https://www.avclub.com/rss",),
 
     # Ad-funded market press. Free and factual on price action; kept at `allowed`.
     "cnbc.com": (

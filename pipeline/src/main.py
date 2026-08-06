@@ -21,7 +21,17 @@ from pathlib import Path
 from . import gather, market
 from .adapters import AdapterError, build
 from .judge import adjudicate
-from .models import Edition, FeedbackTally, Headline, SiteConfig, Story, StocksBlock, OptionsBlock, summarize
+from .models import (
+    Edition,
+    FeedbackTally,
+    Headline,
+    MoviesBlock,
+    OptionsBlock,
+    SiteConfig,
+    StocksBlock,
+    Story,
+    summarize,
+)
 from .settings import Providers, Settings, prompt, setup_logging
 from .store import Store
 
@@ -162,11 +172,49 @@ def build_markets(spec: dict, edition: Edition, tickers: list[str]) -> tuple[Sto
     return (stocks if stocks and stocks.picks else None), (options if options and options.ideas else None)
 
 
+def build_movies(spec: dict, edition: Edition, pool: list[Headline]) -> MoviesBlock | None:
+    """Third pass: the release calendar.
+
+    Fed the same gathered pool rather than the finished edition, because a date change is
+    rarely front-page news — it lives in the items the writer passed over. Optional: a failure
+    costs one tab, not the paper.
+    """
+    payload = {
+        "date": edition.date,
+        "pool": [h.model_dump(by_alias=True) for h in pool],
+    }
+    prompt_text = f"{prompt('movies.md')}\n\n## Input\n\n{json.dumps(payload, ensure_ascii=False, indent=1)}"
+
+    try:
+        raw = build(spec).complete_json(prompt_text)
+    except AdapterError as e:
+        log.error("movies pass failed: %s — publishing without the film desk", e)
+        return None
+
+    try:
+        block = MoviesBlock.model_validate(raw.get("movies") or raw)
+    except Exception as e:
+        log.warning("movies block rejected: %s", e)
+        return None
+
+    # Same rule as the stories: a citation the writer invented is worse than no citation.
+    allowed = {h.url for h in pool}
+    for release in block.releases:
+        if release.source_url and release.source_url not in allowed:
+            log.warning("dropped unsourced citation from %r", release.title[:50])
+            release.source_url = None
+
+    if not block.releases and not block.summary:
+        return None
+    return block
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Generate and publish one edition.")
     parser.add_argument("--date", default=date.today().isoformat(), help="edition date, YYYY-MM-DD")
     parser.add_argument("--dry-run", action="store_true", help="do everything except write to S3")
     parser.add_argument("--no-markets", action="store_true", help="skip the equities and options blocks")
+    parser.add_argument("--no-movies", action="store_true", help="skip the release calendar")
     parser.add_argument("--out", help="also write the edition JSON to this local path")
     parser.add_argument(
         "--config",
@@ -255,13 +303,17 @@ def main(argv: list[str] | None = None) -> int:
         stocks, options = build_markets(providers.candidates[0], edition, tickers)
         edition.stocks, edition.options = stocks, options
 
+    if not args.no_movies:
+        edition.movies = build_movies(providers.candidates[0], edition, headlines)
+
     log.info(
-        "edition No. %d: lead %r, %d stories, %s, %s",
+        "edition No. %d: lead %r, %d stories, %s, %s, %s",
         edition.edition,
         (edition.lead.headline[:60] + "…") if edition.lead else "none",
         len(edition.stories),
         f"{len(edition.stocks.picks)} picks" if edition.stocks else "no equities",
         f"{len(edition.options.ideas)} ideas" if edition.options else "no options",
+        f"{len(edition.movies.releases)} releases" if edition.movies else "no film desk",
     )
 
     if args.out:
