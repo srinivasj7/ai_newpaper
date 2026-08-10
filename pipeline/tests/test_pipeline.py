@@ -142,5 +142,70 @@ check("blocked domains", config.blocked_domains(), {"bad.example"})
 check("trust of a subdomain", config.trust_of("www.good.example"), "preferred")
 check("trust of an unknown domain", config.trust_of("other.example"), "allowed")
 
+# --- the feedback window, at the boundary where the two calendars disagree
+#
+# A vote cast between 17:00 Pacific and midnight UTC reaches the Lambda without an editionDate
+# only if the browser omitted it, and the Lambda then keys it by the UTC date — a day ahead of
+# the pipeline's. It is the vote most likely to matter, because it was cast for the edition the
+# next morning's run is about to replace.
+from datetime import date  # noqa: E402
+
+import src.store as _store  # noqa: E402
+from src.settings import Settings  # noqa: E402
+from src.store import Store  # noqa: E402
+
+
+class _S3Stub:
+    """Records which day-prefixes were listed; serves one event from the day it is given."""
+
+    def __init__(self, event_day: str) -> None:
+        self.event_day = event_day
+        self.listed: list[str] = []
+
+    def list_objects_v2(self, **kw):
+        self.listed.append(kw["Prefix"])
+        if kw["Prefix"].endswith(f"{self.event_day}/"):
+            return {"Contents": [{"Key": kw["Prefix"] + "e1-s1-1.json"}]}
+        return {}
+
+
+def _window(event_day: str, today: date):
+    stub = _S3Stub(event_day)
+    store = Store.__new__(Store)  # no AWS: only load_feedback is under test
+    store.s = Settings(
+        bucket="b",
+        data_prefix="data/",
+        distribution_id=None,
+        region="us-east-1",
+        dry_run=True,
+        max_headlines=1,
+        lookback_hours=1,
+    )
+    store.s3 = stub
+    store._get_json = lambda key: {
+        "storyId": "e1-s1",
+        "vote": "keep",
+        "topic": "ai",
+        "at": "2026-08-09T18:59:00Z",
+    }
+
+    real_today, _store.edition_today = _store.edition_today, lambda: today
+    try:
+        return stub.listed, store.load_feedback(days=7)
+    finally:
+        _store.edition_today = real_today
+
+
+TODAY = date(2026, 8, 9)  # Pacific; in UTC it is already the 10th
+ahead, ahead_tally = _window("2026-08-10", TODAY)
+
+check("scan reaches one day ahead", any(d.endswith("2026-08-10/") for d in ahead), True)
+check("a vote keyed by the UTC date is still counted", ahead_tally.events, 1)
+check("still covers seven days of history", any(d.endswith("2026-08-03/") for d in ahead), True)
+check("does not scan two days ahead", any(d.endswith("2026-08-11/") for d in ahead), False)
+
+same, same_tally = _window("2026-08-09", TODAY)
+check("the ordinary same-day case still works", same_tally.events, 1)
+
 print(f"\n{sum(results)}/{len(results)} passed")
 sys.exit(0 if all(results) else 1)

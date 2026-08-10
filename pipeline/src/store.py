@@ -9,13 +9,13 @@ from __future__ import annotations
 import json
 import logging
 import time
-from datetime import date, timedelta
+from datetime import timedelta
 
 import boto3
 from botocore.exceptions import ClientError
 
 from .models import Edition, FeedbackTally, ManifestEntry, SiteConfig
-from .settings import Settings
+from .settings import Settings, edition_today
 
 log = logging.getLogger("store")
 
@@ -65,9 +65,18 @@ class Store:
     def load_feedback(self, days: int = 7) -> FeedbackTally:
         """Aggregate recent keep/spike events. Latest event per story wins."""
         latest: dict[str, dict] = {}
-        today = date.today()
-        for offset in range(days):
-            day = (today - timedelta(days=offset)).isoformat()
+        # The same day the editions are keyed by, or the newest day of feedback is missed for
+        # the seven hours the two calendars disagree.
+        #
+        # The scan starts a day *ahead* of that. Feedback is keyed by the edition date the
+        # browser sends, and the Lambda falls back to the UTC date when the field is absent —
+        # so between 17:00 Pacific and midnight UTC an event can legitimately land in
+        # tomorrow's prefix. Reading one day forward absorbs that, and any other clock skew
+        # between two services that have no reason to share a calendar. One extra empty
+        # LIST is cheaper than coupling the write path to the pipeline's timezone.
+        start = edition_today() + timedelta(days=1)
+        for offset in range(days + 1):
+            day = (start - timedelta(days=offset)).isoformat()
             prefix = self._key("feedback", day) + "/"
             token = None
             while True:
