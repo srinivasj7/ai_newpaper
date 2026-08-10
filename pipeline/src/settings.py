@@ -10,7 +10,7 @@ import logging
 import os
 import sys
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -29,7 +29,9 @@ load_dotenv(ROOT / ".env")
 # next morning's scheduled run then overwrote. A manual evening run therefore looked like it
 # had worked and then vanished.
 #
-# Keep this equal to the scheduler's timezone (infra: runner_timezone).
+# Keep this equal to the scheduler's timezone. In the stack that is the root variable
+# `runner_timezone` (infra/envs/prod), which reaches the ECS task and the schedule as the
+# runner module's `schedule_timezone` — one value, two names, set in one place.
 EDITION_TZ = os.getenv("EDITION_TZ", "America/Los_Angeles")
 
 
@@ -46,7 +48,10 @@ def edition_today() -> date:
         logging.getLogger("settings").warning(
             "timezone %s unavailable — dating this edition in UTC instead", EDITION_TZ
         )
-        return date.today()
+        # Explicitly UTC, not date.today(): the latter reads the process timezone, so on a
+        # developer's machine it would return the local date while claiming to be UTC. The
+        # container runs on UTC, which is what hid the difference.
+        return datetime.now(timezone.utc).date()
 
 
 def setup_logging() -> None:
