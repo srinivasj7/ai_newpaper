@@ -15,7 +15,7 @@ import json
 import logging
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 from . import gather, market
@@ -32,7 +32,7 @@ from .models import (
     Story,
     summarize,
 )
-from .settings import Providers, Settings, prompt, setup_logging
+from .settings import Providers, Settings, edition_today, prompt, setup_logging
 from .store import Store
 
 log = logging.getLogger("main")
@@ -211,7 +211,7 @@ def build_movies(spec: dict, edition: Edition, pool: list[Headline]) -> MoviesBl
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Generate and publish one edition.")
-    parser.add_argument("--date", default=date.today().isoformat(), help="edition date, YYYY-MM-DD")
+    parser.add_argument("--date", default=edition_today().isoformat(), help="edition date, YYYY-MM-DD")
     parser.add_argument("--dry-run", action="store_true", help="do everything except write to S3")
     parser.add_argument("--no-markets", action="store_true", help="skip the equities and options blocks")
     parser.add_argument("--no-movies", action="store_true", help="skip the release calendar")

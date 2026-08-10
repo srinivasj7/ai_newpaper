@@ -10,7 +10,9 @@ import logging
 import os
 import sys
 from dataclasses import dataclass
+from datetime import date, datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 from dotenv import load_dotenv
@@ -18,6 +20,38 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parent.parent
 
 load_dotenv(ROOT / ".env")
+
+# The paper's own day, which is not the container's.
+#
+# The task runs in UTC and is scheduled in America/Los_Angeles. At 06:15 Pacific the two agree
+# on the date, so a scheduled run was always right — but any run after 17:00 Pacific is already
+# tomorrow in UTC, and `date.today()` there silently published *tomorrow's* edition, which the
+# next morning's scheduled run then overwrote. A manual evening run therefore looked like it
+# had worked and then vanished.
+#
+# Keep this equal to the scheduler's timezone. In the stack that is the root variable
+# `runner_timezone` (infra/envs/prod), which reaches the ECS task and the schedule as the
+# runner module's `schedule_timezone` — one value, two names, set in one place.
+EDITION_TZ = os.getenv("EDITION_TZ", "America/Los_Angeles")
+
+
+def edition_today() -> date:
+    """Today, as the paper reckons it.
+
+    Falls back to UTC if the zone database is missing rather than refusing to publish: a wrong
+    date for a few hours a day beats no edition at all, and the `tzdata` requirement makes the
+    fallback unreachable in the built image.
+    """
+    try:
+        return datetime.now(ZoneInfo(EDITION_TZ)).date()
+    except (ZoneInfoNotFoundError, KeyError, ValueError):
+        logging.getLogger("settings").warning(
+            "timezone %s unavailable — dating this edition in UTC instead", EDITION_TZ
+        )
+        # Explicitly UTC, not date.today(): the latter reads the process timezone, so on a
+        # developer's machine it would return the local date while claiming to be UTC. The
+        # container runs on UTC, which is what hid the difference.
+        return datetime.now(timezone.utc).date()
 
 
 def setup_logging() -> None:
