@@ -147,15 +147,25 @@ jobs:
               execSync('tofu show -json tfplan', { cwd: 'infra/envs/prod', maxBuffer: 256 * 1024 * 1024 }).toString(),
             );
             const changes = (plan.resource_changes || []).filter(c => !c.change.actions.includes('no-op'));
-            const of = action => changes.filter(c => c.change.actions.includes(action)).map(c => c.address);
-            const [created, updated, deleted] = [of('create'), of('update'), of('delete')];
+
+            // Report a replacement as one thing, not as a deletion and a creation of the same
+            // address. Listing it twice is how a routine ECS revision came to read as "this
+            // plan deletes a resource" — which is a different and much more alarming claim.
+            const is = (c, ...a) => a.every(x => c.change.actions.includes(x));
+            const replaced = changes.filter(c => is(c, 'delete', 'create')).map(c => c.address);
+            const rest = changes.filter(c => !is(c, 'delete', 'create'));
+            const only = action => rest.filter(c => c.change.actions.includes(action)).map(c => c.address);
+            const [created, updated, deleted] = [only('create'), only('update'), only('delete')];
+
             const section = (title, list) =>
               list.length ? `\n**${title} (${list.length})**\n${list.map(a => `- \`${a}\``).join('\n')}\n` : '';
-            const body = deleted.length
-              ? `### tofu plan\n\n> [!WARNING]\n> This plan **deletes ${deleted.length} resource(s)**. Apply will refuse unless \`ALLOW_DESTROY\` is set.\n`
-                + section('Delete', deleted) + section('Create', created) + section('Update', updated)
-              : `### tofu plan\n\n${changes.length ? '' : 'No changes.\n'}`
-                + section('Create', created) + section('Update', updated);
+            const warning = deleted.length
+              ? `> [!WARNING]\n> This plan **deletes ${deleted.length} resource(s)**. Apply will refuse unless \`ALLOW_DESTROY\` is set.\n`
+              : '';
+            const body = `### tofu plan\n\n` + warning
+              + (changes.length ? '' : 'No changes.\n')
+              + section('Delete', deleted) + section('Replace', replaced)
+              + section('Create', created) + section('Update', updated);
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -215,15 +225,52 @@ jobs:
       # merge, then unset it.
       - name: Refuse to destroy
         run: |
-          deletions=$(tofu show -json tfplan | jq '[.resource_changes[]? | select(.change.actions | index("delete"))] | length')
-          echo "resources this plan would delete: $deletions"
+          json=$(tofu show -json tfplan)
+
+          # A deletion and a replacement are not the same event, and the first version of this
+          # guard treated them as one — so a routine ECS task-definition revision, which is
+          # always delete+create, read as "this plan deletes a resource" and blocked the apply.
+          #
+          # The failure this guard exists to catch is an input that is set locally but missing
+          # in CI: the root module then evaluates a *smaller* configuration and -auto-approve
+          # executes the difference. That always appears as a resource leaving the plan
+          # entirely — actions == ["delete"], nothing else. A replacement means the resource is
+          # still configured and an immutable attribute changed, which is ordinary.
+          deletions=$(echo "$json" | jq '[.resource_changes[]? | select(.change.actions == ["delete"])] | length')
+          replacements=$(echo "$json" | jq '[.resource_changes[]? | select((.change.actions | index("delete")) and (.change.actions | index("create")))] | length')
+
+          echo "resources this plan would delete outright: $deletions"
+          echo "resources this plan would replace:         $replacements"
+
+          if [ "$replacements" -gt 0 ]; then
+            echo "$json" | jq -r '.resource_changes[]? | select((.change.actions | index("delete")) and (.change.actions | index("create"))) | "  ~ \(.address)"'
+          fi
+
+          # Replacing something that holds data is a different matter: the resource survives in
+          # the configuration but its contents do not. Those types are named rather than
+          # inferred, so adding a stateful resource to this stack is a deliberate decision about
+          # whether it belongs here too.
+          stateful=$(echo "$json" | jq -r '
+            [ .resource_changes[]?
+              | select((.change.actions | index("delete")) and (.change.actions | index("create")))
+              | select(.type | test("^aws_(s3_bucket|dynamodb_table|db_instance|rds_cluster|efs_file_system|elasticache_cluster)$"))
+              | .address ] | .[]')
+
           if [ "$deletions" -gt 0 ]; then
-            tofu show -json tfplan | jq -r '.resource_changes[]? | select(.change.actions | index("delete")) | "  - \(.address)"'
+            echo "$json" | jq -r '.resource_changes[]? | select(.change.actions == ["delete"]) | "  - \(.address)"'
+          fi
+
+          if [ -n "$stateful" ]; then
+            echo "::error::Refusing to apply: this plan replaces a resource that holds data:"
+            echo "$stateful" | while read -r a; do echo "::error::  $a"; done
+          fi
+
+          if [ "$deletions" -gt 0 ] || [ -n "$stateful" ]; then
             if [ "${{ vars.ALLOW_DESTROY }}" != "true" ]; then
-              echo "::error::Refusing to apply: this plan deletes $deletions resource(s). If that is intended, set the ALLOW_DESTROY repository variable to 'true' for one run."
+              echo "::error::Refusing to apply. If this is intended, set the ALLOW_DESTROY repository variable to 'true' for one run, then unset it."
               exit 1
             fi
-            echo "::warning::ALLOW_DESTROY is set — applying a plan that deletes $deletions resource(s)."
+            echo "::warning::ALLOW_DESTROY is set — applying a plan that destroys data or removes resources."
           fi
 
       # Applies the plan that was just checked, so what ships is exactly what was inspected.
