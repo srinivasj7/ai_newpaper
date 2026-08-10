@@ -25,5 +25,25 @@
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.5.0"
+  },
+  "//overrides": [
+    "Advisories against transitive dev tooling that Dependabot cannot fix on its own: every",
+    "path runs through @capacitor/assets or @capacitor/cli, both already at their latest",
+    "release, so there is no version of them that resolves a patched tree. Dependabot reported",
+    "'the available update path still resolves it' and failed the job on a schedule.",
+    "",
+    "None of this ships. These are build-time tools — icon generation and `cap sync` — and the",
+    "app bundle is frontend/dist. But they run on a developer machine and in CI against files",
+    "from the repo, which is enough reason not to leave a known-vulnerable tar or minimatch in",
+    "the tree, and enough to stop a recurring red build from becoming background noise.",
+    "",
+    "Verified after pinning: `cap --version`, `cap sync --help` and `capacitor-assets --help`",
+    "all still run. Remove an entry when the upstream dependency catches up."
+  ],
+  "overrides": {
+    "tar": "^7.5.18",
+    "minimatch": "^3.1.3",
+    "sharp": "^0.35.0",
+    "uuid": "^11.1.1"
   }
 }
