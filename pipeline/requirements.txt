@@ -2,7 +2,7 @@
 pydantic>=2.13.4,<3
 feedparser>=6.0.14,<7
 httpx>=0.28.1,<1
-boto3>=1.43.62,<2
+boto3>=1.43.66,<2
 PyYAML>=6.0.3,<7
 python-dotenv>=1.2.2,<2
 # zoneinfo is stdlib, but the IANA database it reads is not in python:*-slim. Without this the
