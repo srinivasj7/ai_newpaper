@@ -1,5 +1,5 @@
 # The pipeline runs on a dedicated host, never as part of a deploy.
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
