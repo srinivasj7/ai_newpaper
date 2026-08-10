@@ -176,6 +176,10 @@ resource "aws_ecs_task_definition" "pipeline" {
       { name = "DATA_PREFIX", value = var.data_prefix },
       { name = "CLOUDFRONT_DISTRIBUTION_ID", value = var.distribution_id },
       { name = "AWS_REGION", value = data.aws_region.current.region },
+      # The paper's calendar, taken from the schedule's own timezone so the two cannot drift.
+      # The container's clock is UTC; without this the edition is dated in UTC, and any run
+      # after 17:00 local publishes tomorrow's paper.
+      { name = "EDITION_TZ", value = var.schedule_timezone },
       # Identifies the brief to the SEC, which rejects generic agents on its EDGAR feeds.
       { name = "SEC_USER_AGENT", value = var.sec_user_agent },
     ]

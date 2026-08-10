@@ -9,13 +9,13 @@ from __future__ import annotations
 import json
 import logging
 import time
-from datetime import date, timedelta
+from datetime import timedelta
 
 import boto3
 from botocore.exceptions import ClientError
 
 from .models import Edition, FeedbackTally, ManifestEntry, SiteConfig
-from .settings import Settings
+from .settings import Settings, edition_today
 
 log = logging.getLogger("store")
 
@@ -65,7 +65,9 @@ class Store:
     def load_feedback(self, days: int = 7) -> FeedbackTally:
         """Aggregate recent keep/spike events. Latest event per story wins."""
         latest: dict[str, dict] = {}
-        today = date.today()
+        # The same day the editions are keyed by, or the newest day of feedback is missed for
+        # the seven hours the two calendars disagree.
+        today = edition_today()
         for offset in range(days):
             day = (today - timedelta(days=offset)).isoformat()
             prefix = self._key("feedback", day) + "/"
