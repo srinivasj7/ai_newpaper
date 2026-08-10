@@ -40,6 +40,39 @@ cd infra/bootstrap && tofu init && tofu apply     # state bucket, once
 cd ../envs/prod    && tofu init && tofu apply     # everything else
 ```
 
+## Unlocking the site
+
+Reading needs nothing. Changing what the paper publishes — the topics, the sources, and the
+keep/spike votes that steer the judge — is gated on a shared passphrase, because CloudFront's
+OAC proves a request came through the distribution, not that it came from you.
+
+The passphrase is a 32-character random string held in Parameter Store as a `SecureString`. It
+exists in exactly one place: not in this repo, not in OpenTofu state, and not in any plan
+output. Retrieve it with:
+
+```bash
+aws ssm get-parameter --name /daily-compile/admin-token --with-decryption \
+  --query 'Parameter.Value' --output text
+```
+
+Then open the site, click the padlock in the masthead, and paste it. The browser keeps it in
+`localStorage` and sends it as `x-dtb-token` on every write; the padlock turns green. Clicking
+it again locks the browser and forgets the value.
+
+To rotate it, overwrite the parameter and re-unlock each browser. The Lambda reads it at cold
+start, so a rotation takes effect within minutes rather than instantly:
+
+```bash
+aws ssm put-parameter --name /daily-compile/admin-token --type SecureString \
+  --overwrite --value "$(python -c 'import secrets;print(secrets.token_urlsafe(24)[:32])')"
+```
+
+Store it with no surrounding whitespace — a stray space is compared as part of the secret and
+every write then fails with a 401 that looks like a wrong passphrase.
+
+There is deliberately no rate limit or lockout: the defence is entropy (~192 bits), and the
+comparison is constant-time so a wrong guess cannot be narrowed down one character at a time.
+
 ## Pipeline
 
 Runs only on the pipeline host, never as part of a deploy:
