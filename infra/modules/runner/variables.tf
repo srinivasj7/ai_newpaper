@@ -40,6 +40,22 @@ variable "claude_token_parameter_arn" {
   type        = string
 }
 
+variable "bedrock_model_arns" {
+  description = <<-EOT
+    Model ARNs the task may invoke, matching what is enabled in config/providers.yml. Empty
+    grants nothing at all.
+
+    A cross-region inference profile needs both its own ARN and the foundation-model ARN in
+    every region it routes to, e.g.
+      arn:aws:bedrock:us-east-1:<account>:inference-profile/us.xai.grok-4-3-v1:0
+      arn:aws:bedrock:us-east-1::foundation-model/xai.grok-4-3-v1:0
+      arn:aws:bedrock:us-west-2::foundation-model/xai.grok-4-3-v1:0
+    Note the empty account field on foundation-model ARNs: they are AWS-owned, not yours.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
 variable "vpc_id" {
   description = "VPC for the task's security group. The default VPC is fine."
   type        = string

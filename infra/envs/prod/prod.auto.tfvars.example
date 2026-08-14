@@ -14,3 +14,21 @@ github_repo = "OWNER/REPO"
 
 # Optional: reuse a certificate you already have instead of creating one.
 # acm_certificate_arn = "arn:aws:acm:us-east-1:...:certificate/..."
+
+# Bedrock models the pipeline may invoke, matching what is enabled in
+# pipeline/config/providers.yml. Empty (the default) grants nothing at all.
+#
+# A cross-region inference profile ("us." ids) needs BOTH the profile arn and the underlying
+# foundation-model arn — granting only the profile fails at call time with AccessDenied naming
+# a model arn that is nowhere in your configuration. The foundation-model entries wildcard the
+# region deliberately: still one model each, but not a guess about which regions AWS routes
+# through this month. Their empty account field is correct — those resources are AWS-owned.
+#
+# bedrock_model_arns = [
+#   "arn:aws:bedrock:us-east-1:<account-id>:inference-profile/us.zai.glm-5",
+#   "arn:aws:bedrock:us-east-1:<account-id>:inference-profile/us.openai.gpt-oss-120b-1:0",
+#   "arn:aws:bedrock:us-east-1:<account-id>:inference-profile/us.amazon.nova-lite-v1:0",
+#   "arn:aws:bedrock:*::foundation-model/zai.glm-5",
+#   "arn:aws:bedrock:*::foundation-model/openai.gpt-oss-120b-1:0",
+#   "arn:aws:bedrock:*::foundation-model/amazon.nova-lite-v1:0",
+# ]

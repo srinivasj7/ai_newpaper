@@ -18,41 +18,112 @@ candidates:
       - "--disallowed-tools"
       - "Bash,Read,Write,Edit,NotebookEdit,WebFetch,WebSearch,Glob,Grep,Task,TodoWrite"
 
-  # Not installed on this machine yet. Verify the flags before enabling — `codex exec` reads
-  # the prompt from stdin like claude does, but its output is plain text, not an envelope.
-  - id: gpt
-    enabled: false
-    adapter: cli
-    output: text
-    timeout_s: 420
-    command: ["codex", "exec", "--skip-git-repo-check", "-"]
+  # Amazon Bedrock, signed with the task role — no API key exists for this, anywhere. Bedrock
+  # speaks the OpenAI wire format on bedrock-runtime, so adding a model here really is YAML
+  # only: no binary in the image, no credential to rotate, nothing that expires mid-run.
+  #
+  # This replaced the `codex` and `grok` CLI entries that used to sit here. Both vendors are on
+  # Bedrock now, and reaching them this way costs one line of YAML instead of a binary in the
+  # image plus a second credential to keep alive. `id` stays the same so historical editions,
+  # which record the winning provider per story, remain readable.
+  #
+  # model must be the id the console shows. Many models are only callable through a cross-region
+  # inference profile, whose id carries a regional prefix ("us.xai.grok-…"); the bare
+  # foundation-model id is rejected with a validation error that does not explain why.
+  # Chosen for disagreement as much as for price. Fan-out is only worth paying for if the
+  # candidates produce genuinely different editions — two models of the same lineage give the
+  # judge nothing to choose between. These are three separate lineages: Anthropic, OpenAI,
+  # DeepSeek. Roughly $1.56/month for the pair at one run a day.
+  #
+  # The "us." prefix selects a system-defined cross-region inference profile rather than the
+  # bare foundation model. AWS predefines these — nothing to create. Bedrock then routes each
+  # call to whichever constituent region has capacity, which is roughly 3x the single-region
+  # quota, at the same on-demand rate with no routing or data-transfer surcharge. For a job
+  # that gets one attempt a day at 06:15, not being throttled is worth more than it costs,
+  # which is nothing.
+  #
+  # If a profile does not exist for a model, drop the prefix and use the bare id:
+  #   aws bedrock list-inference-profiles --query "inferenceProfileSummaries[].inferenceProfileId"
 
+  # ~$0.37/month. The best value on Bedrock for this workload.
+  - id: gpt
+    enabled: false # flip to true once the IAM grant is applied
+    adapter: openai_compatible
+    auth: sigv4
+    base_url: "https://bedrock-runtime.${AWS_REGION}.amazonaws.com/v1"
+    model: "us.openai.gpt-oss-120b-1:0"
+    timeout_s: 420
+
+  # ~$1.38/month. The strongest open-weight model available here, and a third lineage.
+  - id: glm
+    enabled: false # flip to true once the IAM grant is applied
+    adapter: openai_compatible
+    auth: sigv4
+    base_url: "https://bedrock-runtime.${AWS_REGION}.amazonaws.com/v1"
+    model: "us.zai.glm-5"
+    timeout_s: 420
+
+  # Considered and not chosen, recorded so the reasoning is not relitigated every quarter.
+  # Monthly cost is one writer at one run a day: ~14k input, ~16.5k output — so the output rate
+  # decides it, at roughly 54% of the bill.
+  #
+  #   Kimi K3        Moonshot   ?             leads Frontend Code Arena; price unconfirmed
+  #   DeepSeek V4    DeepSeek   ?             leads SWE-bench Verified; price unconfirmed
+  #   DeepSeek V3.2  DeepSeek   $0.62/$1.85   ~$1.19  cheap but Tier C (43) against Kimi K2.5
+  #                                                   at 69 and GLM 5 at 64 — the weakest here
+  #   Nova 2 Lite    Amazon     $0.30/$2.50   ~$1.38  NOT a cheaper Nova Lite: 10x the output
+  #                                                   rate of nova-lite-v1
+  #   Kimi K2.5      Moonshot   $0.60/$3.00   ~$1.76  60% dearer on output than GLM for no
+  #                                                   edge at this task
+  #   Qwen3-Coder    Alibaba    $0.50/$1.20   ~$0.81  cheapest, but the Bedrock lineup is Coder
+  #                                                   and VL variants — wrong tool for prose
+  #   Grok 4.3       xAI        $1.25/?       ~$1.85+ capable; output rate unconfirmed, and
+  #                                                   output is what costs here
+  #
+  # Every public benchmark behind those rankings is coding- or maths-weighted. None of them
+  # measures writing a sourced 200-word story as valid JSON, so treat them as a weak prior.
+  # The pipeline already measures the real thing, per model, every day: judgeScore and which
+  # candidate won, the "dropped N unsourced citation(s)" warnings from verify_sources, and the
+  # by_model keep/spike tallies. A week of that beats any leaderboard for this decision.
   - id: grok
     enabled: false
-    adapter: cli
-    output: text
+    adapter: openai_compatible
+    auth: sigv4
+    base_url: "https://bedrock-runtime.${AWS_REGION}.amazonaws.com/v1"
+    model: "REPLACE-WITH-CONSOLE-MODEL-ID" # xAI Grok 4.3
     timeout_s: 420
-    command: ["grok", "-p"]
 
-  # Example hosted provider. Adding one is YAML only; the key is read from the named variable.
-  - id: bedrock-nova
+  # Example of the other shape: a hosted vendor reached directly with its own key. Kept as
+  # documentation — Bedrock is the preferred route precisely because it needs no key.
+  - id: vendor-direct
     enabled: false
     adapter: openai_compatible
     base_url: "https://example.invalid/v1"
-    model: "amazon.nova-pro-v1:0"
-    api_key_env: BEDROCK_API_KEY
+    model: "some-model"
+    api_key_env: SOME_API_KEY
     timeout_s: 300
 
 # The judge only runs when two or more candidates succeed — with one writer there is nothing
 # to choose between, and a fabricated score is worse than none.
 #
-# Note on model size: llama3.3:70b needs roughly 40 GB of VRAM. On a 16 GB card use an 8-14B
-# judge; scoring is a reading task and a smaller model does it adequately.
+# On Bedrock rather than Ollama. The scheduled task runs on Fargate, which has no Ollama and no
+# OLLAMA_BASE_URL, so the previous configuration would have failed the moment a second candidate
+# was enabled — silently, because a failed judge falls back to the first candidate and still
+# publishes. Fan-out would have cost three writers and bought no judging at all.
+#
+# Scoring is a reading task; a small model does it adequately and the whole pass is roughly
+# 50k input and 2k output tokens a day. Keep OLLAMA_BASE_URL working for local runs by pointing
+# this at Ollama in a local providers.yml override if you want to judge without spending.
 judge:
   enabled: true
   adapter: openai_compatible
-  base_url: "${OLLAMA_BASE_URL}"
-  model: "llama3.1:8b"
+  auth: sigv4
+  base_url: "https://bedrock-runtime.${AWS_REGION}.amazonaws.com/v1"
+  # Nova Lite v1, not Nova 2 Lite — the newer name is 10x the output rate for a task that is
+  # mostly reading. ~$0.11/month. If its picks look poor, Claude Haiku 4.5 is the upgrade at
+  # about $1.71/month more; the judge decides what actually gets printed, so it is the one
+  # place worth spending up.
+  model: "us.amazon.nova-lite-v1:0"
   timeout_s: 300
   temperature: 0.0
 
