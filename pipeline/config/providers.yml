@@ -22,86 +22,49 @@ candidates:
   # speaks the OpenAI wire format on bedrock-runtime, so adding a model here really is YAML
   # only: no binary in the image, no credential to rotate, nothing that expires mid-run.
   #
-  # This replaced the `codex` and `grok` CLI entries that used to sit here. Both vendors are on
-  # Bedrock now, and reaching them this way costs one line of YAML instead of a binary in the
-  # image plus a second credential to keep alive. `id` stays the same so historical editions,
-  # which record the winning provider per story, remain readable.
+  # This replaced `codex` and `grok` CLI entries. Both needed a binary in the image and a second
+  # credential to keep alive; neither vendor turned out to be reachable from this account anyway.
   #
-  # model must be the id the console shows. Many models are only callable through a cross-region
-  # inference profile, whose id carries a regional prefix ("us.xai.grok-…"); the bare
-  # foundation-model id is rejected with a validation error that does not explain why.
-  # Chosen for disagreement as much as for price. Fan-out is only worth paying for if the
-  # candidates produce genuinely different editions — two models of the same lineage give the
-  # judge nothing to choose between. These are three separate lineages: Anthropic, OpenAI,
-  # DeepSeek. Roughly $1.56/month for the pair at one run a day.
+  # The "us." prefix selects a system-defined cross-region inference profile rather than the bare
+  # foundation model. AWS predefines these — there is nothing to create. Bedrock then routes each
+  # call to whichever constituent region has capacity, roughly 3x the single-region quota, at the
+  # same on-demand rate with no routing or data-transfer surcharge. A job that gets one attempt a
+  # day at 06:15 should not lose it to a throttle.
   #
-  # The "us." prefix selects a system-defined cross-region inference profile rather than the
-  # bare foundation model. AWS predefines these — nothing to create. Bedrock then routes each
-  # call to whichever constituent region has capacity, which is roughly 3x the single-region
-  # quota, at the same on-demand rate with no routing or data-transfer surcharge. For a job
-  # that gets one attempt a day at 06:15, not being throttled is worth more than it costs,
-  # which is nothing.
-  #
-  # If a profile does not exist for a model, drop the prefix and use the bare id:
+  # Everything here was checked against the account rather than the vendor announcements:
   #   aws bedrock list-inference-profiles --query "inferenceProfileSummaries[].inferenceProfileId"
+  # GLM, gpt-oss, Grok, Qwen and Kimi are all announced for Bedrock and none of them is present
+  # in us-east-1 here. Verify before adding, not after.
 
-  # ~$0.37/month. The best value on Bedrock for this workload.
-  - id: gpt
+  # ~$0.61/month. Meta lineage, so it disagrees with Claude — which is the whole point of running
+  # two writers. Cheap for the wrong-looking reason: a mixture-of-experts model activates a
+  # fraction of its weights, so output is $0.80/M against Claude Haiku's $5.00, and output is
+  # 54% of this bill.
+  - id: llama
     enabled: false # flip to true once the IAM grant is applied
     adapter: openai_compatible
     auth: sigv4
     base_url: "https://bedrock-runtime.${AWS_REGION}.amazonaws.com/v1"
-    model: "us.openai.gpt-oss-120b-1:0"
+    model: "us.meta.llama4-maverick-17b-instruct-v1:0"
     timeout_s: 420
 
-  # ~$1.38/month. The strongest open-weight model available here, and a third lineage.
-  - id: glm
-    enabled: false # flip to true once the IAM grant is applied
-    adapter: openai_compatible
-    auth: sigv4
-    base_url: "https://bedrock-runtime.${AWS_REGION}.amazonaws.com/v1"
-    model: "us.zai.glm-5"
-    timeout_s: 420
-
-  # Considered and not chosen, recorded so the reasoning is not relitigated every quarter.
-  # Monthly cost is one writer at one run a day: ~14k input, ~16.5k output — so the output rate
-  # decides it, at roughly 54% of the bill.
+  # Present in the account and considered, so the comparison is not redone every quarter.
+  # Cost is one writer at one run a day: ~14k input, ~16.5k output.
   #
-  #   Kimi K3        Moonshot   ?             leads Frontend Code Arena; price unconfirmed
-  #   DeepSeek V4    DeepSeek   ?             leads SWE-bench Verified; price unconfirmed
-  #   DeepSeek V3.2  DeepSeek   $0.62/$1.85   ~$1.19  cheap but Tier C (43) against Kimi K2.5
-  #                                                   at 69 and GLM 5 at 64 — the weakest here
-  #   Nova 2 Lite    Amazon     $0.30/$2.50   ~$1.38  NOT a cheaper Nova Lite: 10x the output
-  #                                                   rate of nova-lite-v1
-  #   Kimi K2.5      Moonshot   $0.60/$3.00   ~$1.76  60% dearer on output than GLM for no
-  #                                                   edge at this task
-  #   Qwen3-Coder    Alibaba    $0.50/$1.20   ~$0.81  cheapest, but the Bedrock lineup is Coder
-  #                                                   and VL variants — wrong tool for prose
-  #   Grok 4.3       xAI        $1.25/?       ~$1.85+ capable; output rate unconfirmed, and
-  #                                                   output is what costs here
-  #
-  # Every public benchmark behind those rankings is coding- or maths-weighted. None of them
-  # measures writing a sourced 200-word story as valid JSON, so treat them as a weak prior.
-  # The pipeline already measures the real thing, per model, every day: judgeScore and which
-  # candidate won, the "dropped N unsourced citation(s)" warnings from verify_sources, and the
-  # by_model keep/spike tallies. A week of that beats any leaderboard for this decision.
-  - id: grok
-    enabled: false
-    adapter: openai_compatible
-    auth: sigv4
-    base_url: "https://bedrock-runtime.${AWS_REGION}.amazonaws.com/v1"
-    model: "REPLACE-WITH-CONSOLE-MODEL-ID" # xAI Grok 4.3
-    timeout_s: 420
-
-  # Example of the other shape: a hosted vendor reached directly with its own key. Kept as
-  # documentation — Bedrock is the preferred route precisely because it needs no key.
-  - id: vendor-direct
-    enabled: false
-    adapter: openai_compatible
-    base_url: "https://example.invalid/v1"
-    model: "some-model"
-    api_key_env: SOME_API_KEY
-    timeout_s: 300
+  #   Llama 4 Scout     Meta      same family as Maverick — a second Meta model adds cost
+  #                               without adding disagreement, which is what fan-out buys
+  #   Nova Pro          Amazon    plausible; price unconfirmed at time of writing
+  #   Nova Micro/Lite   Amazon    cheapest available, but small — better as the judge, which
+  #                               is a reading task, than as a writer
+  #   DeepSeek R1       DeepSeek  ~$1.35/$5.40 => ~$3.28/mo, and it is a reasoning model: the
+  #                               visible chain of thought inflates output well past the 16.5k
+  #                               this estimate assumes, against a 420s timeout
+  #   Palmyra X5        Writer    ~$0.60/$6.00 => ~$3.27/mo. Documented as suited to
+  #                               retrieval-heavy rather than generation-heavy work, which is
+  #                               precisely backwards for a writer
+  #   Nova Premier      Amazon    $2.50/$12.50 — flagship pricing for a job a small model does
+  #   Claude Opus/Sonnet 5        capable and unnecessary: Claude already writes one candidate,
+  #                               on a flat subscription rather than per token
 
 # The judge only runs when two or more candidates succeed — with one writer there is nothing
 # to choose between, and a fabricated score is worse than none.

@@ -25,10 +25,8 @@ github_repo = "OWNER/REPO"
 # through this month. Their empty account field is correct — those resources are AWS-owned.
 #
 # bedrock_model_arns = [
-#   "arn:aws:bedrock:us-east-1:<account-id>:inference-profile/us.zai.glm-5",
-#   "arn:aws:bedrock:us-east-1:<account-id>:inference-profile/us.openai.gpt-oss-120b-1:0",
+#   "arn:aws:bedrock:us-east-1:<account-id>:inference-profile/us.meta.llama4-maverick-17b-instruct-v1:0",
 #   "arn:aws:bedrock:us-east-1:<account-id>:inference-profile/us.amazon.nova-lite-v1:0",
-#   "arn:aws:bedrock:*::foundation-model/zai.glm-5",
-#   "arn:aws:bedrock:*::foundation-model/openai.gpt-oss-120b-1:0",
+#   "arn:aws:bedrock:*::foundation-model/meta.llama4-maverick-17b-instruct-v1:0",
 #   "arn:aws:bedrock:*::foundation-model/amazon.nova-lite-v1:0",
 # ]
