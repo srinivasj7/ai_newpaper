@@ -88,7 +88,11 @@ html,body{background:var(--paper);}
 .dc-modal-foot{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
 
 /* Section nav */
-.dc-nav{display:flex; justify-content:center; gap:0; border-bottom:1px solid var(--rule-dark);
+/* `safe center` — not plain `center`: on a phone the six sections overflow this scroll container,
+   and plain centering pushes the first (active) tab off the left edge into an area that cannot be
+   scrolled back to. `safe` keeps the centred look while there is room and falls back to start-
+   alignment when it overflows, so nothing is clipped and the full rail scrolls. */
+.dc-nav{display:flex; justify-content:safe center; gap:0; border-bottom:1px solid var(--rule-dark);
   overflow-x:auto; -webkit-overflow-scrolling:touch;}
 .dc-nav button{appearance:none; background:none; border:none; cursor:pointer;
   font-family:var(--label); font-size:13px; letter-spacing:.18em; text-transform:uppercase;

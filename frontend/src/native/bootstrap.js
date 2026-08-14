@@ -30,7 +30,7 @@ export async function initNative() {
   if (!Capacitor.isNativePlatform()) return;
 
   try {
-    await Promise.all([setupSplash(), setupExternalLinks()]);
+    await Promise.all([setupSplash(), setupStatusBar(), setupExternalLinks()]);
     setupPullToRefresh();
     // OTA runs last and never blocks startup — a failed check just means "keep the current bundle".
     checkForUpdate();
@@ -66,28 +66,71 @@ async function setupExternalLinks() {
   );
 }
 
+async function setupStatusBar() {
+  const { StatusBar, Style } = await import("@capacitor/status-bar");
+  const root = document.documentElement;
+
+  // Android 15+/16 enforce edge-to-edge, so by default the WebView draws behind the status bar and
+  // the masthead's top row is clipped. overlay:false lays the WebView out below the bar. On iOS this
+  // is effectively a no-op — content is already inset past the notch by the safe area.
+  await StatusBar.setOverlaysWebView({ overlay: false }).catch((err) =>
+    console.warn("[native] status bar overlay failed", err),
+  );
+
+  const isAndroid = Capacitor.getPlatform() === "android";
+  // Paint the bar to match whatever theme useTheme resolved onto <html data-theme> (only ever
+  // "light" or "dark"), and follow it when the user cycles the theme or the system flips.
+  const apply = async () => {
+    const dark = root.getAttribute("data-theme") === "dark";
+    try {
+      // Style.Dark = light glyphs (for a dark bar); Style.Light = dark glyphs (for a light bar).
+      await StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light });
+      // Bar background is Android-only; iOS has no settable status-bar background.
+      if (isAndroid) await StatusBar.setBackgroundColor({ color: dark ? "#14140F" : "#F6F5F1" });
+    } catch (err) {
+      console.warn("[native] status bar style failed", err);
+    }
+  };
+
+  await apply();
+  // initNative() runs before React's first paint, so data-theme may not be stamped yet; the observer
+  // catches the first stamp and every later theme change.
+  new MutationObserver(apply).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+}
+
 function setupPullToRefresh() {
-  // Minimal overscroll-to-reload: only arms when the page is already scrolled to the very top.
-  // A full reload re-fetches the manifest and re-opens the current edition — the right refresh
-  // for a daily paper. (A styled spinner is a deliberate future enhancement; thin for now.)
-  const THRESHOLD = 70;
-  const scroller = document.scrollingElement || document.documentElement;
+  // Overscroll-to-reload: fires ONLY on a deliberate downward pull that both starts and stays at the
+  // very top. It re-reads the scroll position on every move and stands down on any upward motion, so
+  // ordinary scrolling never reloads. A full reload re-fetches the manifest and re-opens the current
+  // edition — the right refresh for a daily paper. (A styled spinner is a future enhancement.)
+  const THRESHOLD = 90;
+  const scrollTop = () =>
+    window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
   let startY = 0;
   let armed = false;
+  let fired = false;
 
   addEventListener(
     "touchstart",
     (e) => {
-      armed = scroller.scrollTop <= 0 && e.touches.length === 1;
-      startY = armed ? e.touches[0].clientY : 0;
+      armed = e.touches.length === 1 && scrollTop() <= 0;
+      fired = false;
+      startY = e.touches[0]?.clientY ?? 0;
     },
     { passive: true },
   );
   addEventListener(
     "touchmove",
     (e) => {
-      if (!armed) return;
-      if (e.touches[0].clientY - startY > THRESHOLD) {
+      if (!armed || fired) return;
+      const dy = e.touches[0].clientY - startY;
+      // The page moved off the top, or the finger went up — a scroll, not a pull. Stand down.
+      if (scrollTop() > 0 || dy < 0) {
+        armed = false;
+        return;
+      }
+      if (dy > THRESHOLD) {
+        fired = true;
         armed = false;
         location.reload();
       }

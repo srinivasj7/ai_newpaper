@@ -1,28 +1,15 @@
 # Dependencies
 node_modules/
 
-# The web bundle is built from ../frontend and copied in by `cap sync` — never committed here.
-android/app/src/main/assets/public/
-ios/App/App/public/
+# Generated native projects — scaffolded locally by `npx cap add android` / `add ios` from the web
+# build and fully regenerable, so they are not committed. (If a store-build pipeline is set up later,
+# commit android/ and ios/ and restore the granular build-artifact ignores; see mobile/README.md.)
+android/
+ios/
 
-# Android build artifacts
-android/build/
-android/.gradle/
-android/app/build/
-android/local.properties
-android/.idea/
-android/app/release/
+# Signing material — never in the repo, regardless of the above
 *.keystore
 *.jks
-
-# iOS build artifacts
-ios/App/Pods/
-ios/App/build/
-ios/App/DerivedData/
-ios/App/App.xcworkspace/xcuserdata/
-ios/App/App.xcodeproj/xcuserdata/
-
-# Signing material — never in the repo
 *.p8
 *.p12
 *.mobileprovision
