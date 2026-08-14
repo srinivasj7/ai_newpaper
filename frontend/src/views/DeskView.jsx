@@ -9,6 +9,9 @@ const SAVE_TEXT = {
   locked: "Locked — unlock to publish this change",
 };
 
+/* Only rendered when unlocked — App hides the tab entirely otherwise — so there is no locked
+   state to handle in here, and no unlock affordance either. The padlock in the masthead is the
+   single way in, which keeps one control responsible for one thing. */
 export default function DeskView({
   config,
   setConfig,
@@ -17,8 +20,6 @@ export default function DeskView({
   onImport,
   importedCount,
   onClearImported,
-  unlocked,
-  onUnlock,
   onLock,
 }) {
   const [topicName, setTopicName] = useState("");
@@ -104,14 +105,13 @@ export default function DeskView({
     <div className="dc-desk">
       <h3>Editing</h3>
       <p className="hint">
-        Anyone can read this paper; only someone with the passphrase can change what it publishes. Topics, sources, and
-        story votes all steer tomorrow&rsquo;s edition, so all three are behind it. Edits made while locked stay in this
-        browser and are sent once you unlock.
+        Unlocked. Changes here steer what the pipeline writes tomorrow, and every one of them is published to the
+        server. Locking hides this panel again and forgets the passphrase in this browser.
       </p>
       <div className="dc-add">
-        <span className={`dc-save ${unlocked ? "saved" : ""}`}>{unlocked ? "Unlocked" : "Locked"}</span>
-        <button className="dc-btn ghost" onClick={unlocked ? onLock : onUnlock}>
-          {unlocked ? "Lock" : "Unlock"}
+        <span className="dc-save saved">Unlocked</span>
+        <button className="dc-btn ghost" onClick={onLock}>
+          Lock
         </button>
       </div>
 
