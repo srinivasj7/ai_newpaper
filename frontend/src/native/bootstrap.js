@@ -10,7 +10,8 @@
  * Responsibilities (thin scope):
  *   - hide the native splash once the app has painted
  *   - open external links in the system browser, not the in-app WebView
- *   - pull-to-refresh (reload the current bundle)
+ *   - keep any reload pinned to the top (scroll restoration off) — the paper refreshes its own
+ *     data in-app via a cheap manifest check (see useEditions), never a full page reload
  *   - check for an over-the-air (OTA) web-bundle update and apply it (with auto-rollback)
  */
 
@@ -30,8 +31,10 @@ export async function initNative() {
   if (!Capacitor.isNativePlatform()) return;
 
   try {
+    // A reload should start at the top, not restore the previous scroll offset — otherwise a
+    // refresh or an OTA bundle swap appears to "jump to the bottom" of the page.
+    if ("scrollRestoration" in history) history.scrollRestoration = "manual";
     await Promise.all([setupSplash(), setupStatusBar(), setupExternalLinks()]);
-    setupPullToRefresh();
     // OTA runs last and never blocks startup — a failed check just means "keep the current bundle".
     checkForUpdate();
   } catch (err) {
@@ -96,48 +99,6 @@ async function setupStatusBar() {
   // initNative() runs before React's first paint, so data-theme may not be stamped yet; the observer
   // catches the first stamp and every later theme change.
   new MutationObserver(apply).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
-}
-
-function setupPullToRefresh() {
-  // Overscroll-to-reload: fires ONLY on a deliberate downward pull that both starts and stays at the
-  // very top. It re-reads the scroll position on every move and stands down on any upward motion, so
-  // ordinary scrolling never reloads. A full reload re-fetches the manifest and re-opens the current
-  // edition — the right refresh for a daily paper. (A styled spinner is a future enhancement.)
-  const THRESHOLD = 90;
-  const scrollTop = () =>
-    window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-  let startY = 0;
-  let armed = false;
-  let fired = false;
-
-  addEventListener(
-    "touchstart",
-    (e) => {
-      armed = e.touches.length === 1 && scrollTop() <= 0;
-      fired = false;
-      startY = e.touches[0]?.clientY ?? 0;
-    },
-    { passive: true },
-  );
-  addEventListener(
-    "touchmove",
-    (e) => {
-      if (!armed || fired) return;
-      const dy = e.touches[0].clientY - startY;
-      // The page moved off the top, or the finger went up — a scroll, not a pull. Stand down.
-      if (scrollTop() > 0 || dy < 0) {
-        armed = false;
-        return;
-      }
-      if (dy > THRESHOLD) {
-        fired = true;
-        armed = false;
-        location.reload();
-      }
-    },
-    { passive: true },
-  );
-  addEventListener("touchend", () => (armed = false), { passive: true });
 }
 
 async function checkForUpdate() {

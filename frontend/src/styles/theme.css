@@ -101,6 +101,29 @@ html,body{background:var(--paper);}
 .dc-nav button.on{color:var(--ink); border-bottom-color:var(--wire); font-weight:700;}
 .dc-nav button:focus-visible{outline:2px solid var(--wire); outline-offset:-2px;}
 
+/* Section rail as a fixed bottom tab bar on phones. On desktop it is hidden and the top .dc-nav
+   shows instead; on mobile the top rail hides and this takes over — App renders both, CSS chooses.
+   Sits above the home indicator via the safe-area inset; content gets matching bottom padding so
+   the footer clears it. */
+.dc-bottomnav{display:none;}
+@media(max-width:760px){
+  .dc-nav{display:none;}
+  .dc-bottomnav{
+    display:flex; position:fixed; left:0; right:0; bottom:0; z-index:40;
+    background:var(--paper); border-top:1px solid var(--rule-dark);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .dc-shell{ padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+}
+.dc-bottomnav button{appearance:none; background:none; border:none; cursor:pointer;
+  flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:3px;
+  padding:8px 3px 7px; color:var(--ink-soft); font-family:var(--label); font-size:9.5px;
+  letter-spacing:.04em; text-transform:uppercase;}
+.dc-bottomnav button .ico{display:inline-flex; line-height:0;}
+.dc-bottomnav button .lbl{max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.dc-bottomnav button.on{color:var(--wire);}
+.dc-bottomnav button:focus-visible{outline:2px solid var(--wire); outline-offset:-3px;}
+
 /* On a phone the rail matters more than the wall-clock date, which the freshness pill implies. */
 @media(max-width:560px){ .dc-mast-date{display:none;} }
 
@@ -241,6 +264,8 @@ pre.dc-export{font-family:var(--mono); font-size:11.5px; background:var(--field)
 .dc-banner .retry{appearance:none; background:none; border:none; cursor:pointer; padding:0;
   font-family:var(--label); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
   color:var(--down); border-bottom:1px solid currentColor;}
+/* Offline is expected, not a failure — mute it: ink-soft on the neutral tint, no alarm red. */
+.dc-banner.offline{border-color:var(--rule-dark); color:var(--ink-soft);}
 
 /* Market pages (stocks / options) */
 .dc-mkt-head{display:flex; justify-content:space-between; align-items:baseline; margin:24px 0 4px; flex-wrap:wrap; gap:6px;}

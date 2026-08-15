@@ -3,13 +3,16 @@ import { fetchEdition, fetchIndex, primeEdition } from "../api/client.js";
 import { normalizeEdition, normalizeIndex, summarize } from "../api/normalize.js";
 import { K } from "../defaults.js";
 import { load, save } from "./storage.js";
+import { loadEdition, saveEdition } from "./editionsCache.js";
+import { useOnline } from "./useOnline.js";
 
 /**
  * Owns the archive manifest and the currently open edition.
  *
  * One fetch for the manifest, then one fetch per edition actually opened. If the wire is down we
- * fall back to the last manifest and edition we cached — the paper still prints, just yesterday's.
- * Hand-imported editions (The Desk) live in localStorage and shadow anything of the same date.
+ * fall back to the last manifest and to the per-date edition cache — the paper still prints, just
+ * the saved copy. Hand-imported editions (The Desk) live in localStorage and shadow anything of the
+ * same date. Coming back online refetches both, so a stale copy heals itself.
  */
 export function useEditions() {
   const [entries, setEntries] = useState([]);
@@ -22,6 +25,17 @@ export function useEditions() {
   const [stale, setStale] = useState(false);
   const [reloads, setReloads] = useState(0);
   const wanted = useRef(null);
+  const lastFetch = useRef({ date: null, reloads: -1 });
+
+  const online = useOnline();
+  const prevOnline = useRef(online);
+
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  // The newest edition we currently hold, read inside callbacks without re-subscribing them.
+  const latestKnownRef = useRef(null);
+  useEffect(() => {
+    latestKnownRef.current = entries[0] ?? null;
+  }, [entries]);
 
   const importedByDate = useMemo(() => new Map(imported.map((e) => [e.date, e])), [imported]);
 
@@ -70,13 +84,17 @@ export function useEditions() {
       setCurrent(null);
       return;
     }
-    if (current?.date === targetDate) return;
 
     const local = importedByDate.get(targetDate);
     if (local) {
       setCurrent(local);
       return;
     }
+
+    // Don't refetch a date we already have unless a reload was explicitly asked for (retry or a
+    // reconnect bumps `reloads`); switching tabs alone must not hit the network again.
+    if (lastFetch.current.date === targetDate && lastFetch.current.reloads === reloads) return;
+    lastFetch.current = { date: targetDate, reloads };
 
     wanted.current = targetDate;
     setEditionLoading(true);
@@ -85,14 +103,14 @@ export function useEditions() {
         if (wanted.current !== targetDate) return; // a newer request won
         const ed = normalizeEdition(raw);
         if (!ed) throw new Error("edition JSON did not match the contract");
-        save(K.editionCache, ed);
+        saveEdition(ed.date, ed);
         setCurrent(ed);
         setStale(false);
         setError((e) => (e?.scope === "edition" ? null : e));
       })
       .catch((err) => {
         if (wanted.current !== targetDate) return;
-        const cached = normalizeEdition(load(K.editionCache, null));
+        const cached = normalizeEdition(loadEdition(targetDate));
         if (cached) {
           setCurrent(cached);
           setStale(true);
@@ -102,7 +120,13 @@ export function useEditions() {
       .finally(() => {
         if (wanted.current === targetDate) setEditionLoading(false);
       });
-  }, [targetDate, current?.date, importedByDate]);
+  }, [targetDate, reloads, importedByDate]);
+
+  // Reconnecting refetches the manifest and the open edition so a cached copy heals to fresh.
+  useEffect(() => {
+    if (!prevOnline.current && online) setReloads((n) => n + 1);
+    prevOnline.current = online;
+  }, [online]);
 
   const importEditions = useCallback((raws) => {
     const eds = raws.map(normalizeEdition).filter(Boolean);
@@ -136,6 +160,7 @@ export function useEditions() {
     editionLoading,
     error,
     stale,
+    online,
     retry,
     importEditions,
     clearImported,
