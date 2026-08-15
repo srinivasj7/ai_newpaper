@@ -132,6 +132,23 @@ data "aws_iam_policy_document" "task" {
     actions   = ["cloudfront:CreateInvalidation"]
     resources = [var.distribution_arn]
   }
+
+  # Bedrock, as the writers and the judge. Empty by default: no models enabled means no grant,
+  # rather than a wildcard sitting there waiting to be forgotten.
+  #
+  # A cross-region inference profile needs BOTH arns — the profile itself, and the underlying
+  # foundation model in every region the profile can route to. Granting only the profile fails
+  # at call time with AccessDenied naming a model arn you never wrote down, which is a
+  # thoroughly confusing way to spend an afternoon.
+  dynamic "statement" {
+    for_each = length(var.bedrock_model_arns) > 0 ? [1] : []
+
+    content {
+      sid       = "InvokeTheModels"
+      actions   = ["bedrock:InvokeModel"]
+      resources = var.bedrock_model_arns
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "task" {

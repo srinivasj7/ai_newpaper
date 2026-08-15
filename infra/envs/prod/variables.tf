@@ -150,6 +150,24 @@ variable "runner_subnet_ids" {
   default     = []
 }
 
+variable "bedrock_model_arns" {
+  description = <<-EOT
+    Bedrock models the pipeline may invoke, matching config/providers.yml. Empty grants nothing.
+    Set in CI as TF_VAR_bedrock_model_arns so the value is identical there and locally — an input
+    present in one and absent in the other is what makes CI compute a smaller configuration.
+
+    Calling a cross-region inference profile ("us." ids) needs BOTH the profile arn and the
+    foundation-model arn in every region the profile can route to. Granting only the profile
+    fails at call time with AccessDenied naming a model arn that appears nowhere in your config,
+    which is a memorably unhelpful way to spend an afternoon. The foundation-model entries below
+    wildcard the region for exactly that reason — still scoped to one model, but not a guess
+    about which regions AWS routes through this month. Note their empty account field: those
+    resources are AWS-owned, not yours.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
 variable "sec_user_agent" {
   description = "Contact string sent to SEC EDGAR, which rejects generic user agents."
   type        = string

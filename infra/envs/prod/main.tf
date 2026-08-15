@@ -160,6 +160,7 @@ module "runner" {
   schedule_enabled    = var.runner_schedule_enabled
   sec_user_agent      = var.sec_user_agent
   alert_email         = var.alert_email
+  bedrock_model_arns  = var.bedrock_model_arns
 }
 
 module "ci" {
