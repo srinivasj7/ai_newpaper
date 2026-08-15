@@ -33,6 +33,16 @@ const TABS = [
   ["movies", "Movies"],
 ];
 
+/* Settings is the only tab that does nothing without the passphrase — every control in it
+   writes. Showing it while locked offers a door that opens onto a wall. It is hidden rather
+   than disabled because a greyed-out tab still says "there is something here for you",
+   which for a locked reader is not true.
+
+   This is presentation, not security: the panel only ever edited a local draft, and the
+   Lambda refuses an unsigned write regardless of what the browser chooses to render. The
+   padlock in the masthead remains the way in, which is why unlocking does not live here. */
+const requiresUnlock = (key) => key === "desk";
+
 export default function App() {
   const [view, setView] = useState("today");
   const { theme, cycleTheme } = useTheme();
@@ -57,9 +67,17 @@ export default function App() {
 
   const onVote = useCallback((story, choice) => vote(story, choice, currentDate), [vote, currentDate]);
 
-  // The token can also be set from the Settings panel, so the padlock follows the store rather
+  // The token can be cleared from more than one place, so the padlock follows the store rather
   // than owning the state.
   useEffect(() => onTokenChange((value) => setUnlocked(Boolean(value))), []);
+
+  // Locking while Settings is open would otherwise leave the reader on a tab that is no longer
+  // in the nav — visible, unreachable, and impossible to leave except by picking another.
+  useEffect(() => {
+    if (!unlocked && requiresUnlock(view)) setView("today");
+  }, [unlocked, view]);
+
+  const tabs = unlocked ? TABS : TABS.filter(([k]) => !requiresUnlock(k));
 
   // A write came back 401 — the stored secret is gone or was never right. Ask, once.
   useEffect(() => {
@@ -118,7 +136,7 @@ export default function App() {
         </header>
 
         <nav className="dc-nav" aria-label="Sections">
-          {TABS.map(([k, label]) => (
+          {tabs.map(([k, label]) => (
             <button key={k} className={view === k ? "on" : ""} onClick={() => setView(k)} aria-current={view === k}>
               {label}
             </button>
@@ -146,13 +164,13 @@ export default function App() {
             {view === "stocks" && <StocksView edition={current} entries={entries} onOpenDate={openEdition} />}
             {view === "options" && <OptionsView edition={current} entries={entries} onOpenDate={openEdition} />}
             {view === "archive" && <ArchiveView entries={entries} onOpen={openEdition} />}
-            {view === "desk" && (
+            {/* `unlocked` as well as the view: the effect above redirects a locked reader, but
+                only after this render, and a frame of the settings panel is still a frame of it. */}
+            {view === "desk" && unlocked && (
               <DeskView
                 config={config}
                 setConfig={setConfig}
                 saveState={saveState}
-                unlocked={unlocked}
-                onUnlock={() => setAskUnlock(true)}
                 onLock={clearToken}
                 feedback={feedback}
                 onImport={onImport}
