@@ -207,5 +207,77 @@ check("does not scan two days ahead", any(d.endswith("2026-08-11/") for d in ahe
 same, same_tally = _window("2026-08-09", TODAY)
 check("the ordinary same-day case still works", same_tally.events, 1)
 
+# --------------------------------------------------------------- the bedrock adapter
+#
+# Converse rather than the OpenAI-compatible endpoint: support for /chat/completions is
+# per-model on Bedrock, and the documentation maps models to endpoints rather than to APIs.
+# These assert the request shape, because a wrong one fails once a day at 06:15 and nowhere else.
+
+import boto3  # noqa: E402
+
+from src.adapters import build  # noqa: E402
+
+
+class _BedrockStub:
+    def __init__(self, blocks, stop="end_turn", raises=None):
+        self.blocks, self.stop, self.raises, self.calls = blocks, stop, raises, {}
+
+    def converse(self, **kw):
+        self.calls.update(kw)
+        if self.raises:
+            raise self.raises
+        return {
+            "output": {"message": {"content": self.blocks}},
+            "usage": {"inputTokens": 13900, "outputTokens": 16472},
+            "stopReason": self.stop,
+        }
+
+
+def _run(stub, method="complete", spec=None):
+    real, boto3.client = boto3.client, lambda service, **kw: stub
+    try:
+        adapter = build(
+            {
+                "id": "llama",
+                "adapter": "bedrock",
+                "timeout_s": 420,
+                "model": "us.meta.llama4-maverick-17b-instruct-v1:0",
+                **(spec or {}),
+            }
+        )
+        return getattr(adapter, method)("write the paper")
+    finally:
+        boto3.client = real
+
+
+ANSWER = [
+    {"reasoningContent": {"reasoningText": {"text": "thinking out loud"}}},
+    {"text": '{"lead": {"headline": "ok"}}'},
+]
+
+stub = _BedrockStub(ANSWER)
+out = _run(stub)
+check("bedrock: modelId passed through", stub.calls["modelId"], "us.meta.llama4-maverick-17b-instruct-v1:0")
+check(
+    "bedrock: Converse message shape",
+    stub.calls["messages"],
+    [{"role": "user", "content": [{"text": "write the paper"}]}],
+)
+check("bedrock: no maxTokens unless configured", "maxTokens" in stub.calls["inferenceConfig"], False)
+check("bedrock: reasoning blocks are not the answer", out, '{"lead": {"headline": "ok"}}')
+check("bedrock: parses to the edition object", _run(_BedrockStub(ANSWER), "complete_json"), {"lead": {"headline": "ok"}})
+
+stub = _BedrockStub(ANSWER)
+_run(stub, spec={"max_tokens": 8000})
+check("bedrock: maxTokens reaches inferenceConfig", stub.calls["inferenceConfig"].get("maxTokens"), 8000)
+
+# A client error must surface as AdapterError, so the run drops one candidate and continues
+# rather than taking the edition down with it.
+raises(
+    "bedrock: client errors become AdapterError",
+    lambda: _run(_BedrockStub(ANSWER, raises=RuntimeError("AccessDeniedException"))),
+)
+raises("bedrock: a malformed response is rejected", lambda: _run(_BedrockStub(None)))
+
 print(f"\n{sum(results)}/{len(results)} passed")
 sys.exit(0 if all(results) else 1)

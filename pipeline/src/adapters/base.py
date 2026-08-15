@@ -106,10 +106,13 @@ def extract_json(text: str) -> dict:
 
 def build(spec: dict) -> Adapter:
     """Instantiate the adapter named in a providers.yml entry."""
+    from .bedrock import BedrockAdapter
     from .cli import CliAdapter
     from .openai_compatible import OpenAICompatibleAdapter
 
     kind = spec.get("adapter")
+    if kind == "bedrock":
+        return BedrockAdapter(spec)
     if kind == "cli":
         return CliAdapter(spec)
     if kind == "openai_compatible":
