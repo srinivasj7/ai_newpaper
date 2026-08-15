@@ -19,8 +19,17 @@ on:
 permissions:
   contents: read
 
+# One shared group serialised every branch, and GitHub keeps only ONE run queued per group:
+# a third arrival cancels the one already waiting. cancel-in-progress: false protects the
+# running job, not the queued one. So opening two pull requests seconds apart cancelled the
+# older one's plan, and because `plan` is a required check the pull request was then blocked
+# on a check that would never report — no red X, nothing to click, just a gap.
+#
+# Pull requests now get a group each. They only ever plan, and a plan writes nothing, so there
+# is nothing to serialise between them. main keeps the single shared group, because apply does
+# mutate state and two of those must never overlap.
 concurrency:
-  group: infra
+  group: infra-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
   cancel-in-progress: false
 
 env:
@@ -133,7 +142,17 @@ jobs:
           REGION: ${{ vars.AWS_REGION }}
         run: tofu init -backend-config="bucket=$STATE_BUCKET" -backend-config="region=$REGION"
 
-      - run: tofu plan -no-color -out=tfplan
+      # Pull-request plans no longer queue behind each other, so they would now contend for the
+      # state lock instead — trading a silently cancelled check for a red one. A plan writes no
+      # state, so it does not need the lock: -lock=false lets any number of them read at once.
+      # The apply job keeps locking, which is where it actually matters.
+      #
+      # The flag arrives through env rather than being interpolated into the script, matching
+      # the Init step above.
+      - name: Plan
+        env:
+          LOCK_FLAG: ${{ github.event_name == 'pull_request' && '-lock=false' || '' }}
+        run: tofu plan -no-color -out=tfplan $LOCK_FLAG
 
       # A summary, not the plan. The full plan lists every ARN, endpoint and policy document,
       # and a comment on a public pull request is a permanent, indexable place to publish them.
