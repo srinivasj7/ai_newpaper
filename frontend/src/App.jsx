@@ -29,11 +29,11 @@ const count = (n, noun) => `${n} ${n === 1 ? noun : `${noun}s`}`;
 const TABS = [
   ["today", "Front Page"],
   ["stocks", "Equities"],
-  ["options", "Options"],
-  ["archive", "Archive"],
   ["desk", "Settings"],
   ["movies", "Movies"],
 ];
+// Options folds into Equities and the Archive folds into Settings — see the view switch below —
+// to keep the (bottom) rail short. Both still have their own view render, just no rail entry.
 
 /* Settings is the only tab that does nothing without the passphrase — every control in it
    writes. Showing it while locked offers a door that opens onto a wall. It is hidden rather
@@ -71,7 +71,9 @@ export default function App() {
     error,
     stale,
     online,
+    updateAvailable,
     retry,
+    refresh,
     importEditions,
     clearImported,
     importedCount,
@@ -146,6 +148,8 @@ export default function App() {
                 onCycleTheme={cycleTheme}
                 unlocked={unlocked}
                 onLockClick={onLockClick}
+                onRefresh={refresh}
+                updateAvailable={updateAvailable}
               />
             </div>
           </div>
@@ -162,6 +166,12 @@ export default function App() {
         </nav>
 
         <ErrorBanner error={error} stale={stale} offline={!online} onRetry={retry} />
+
+        {updateAvailable && (
+          <button type="button" className="dc-update" onClick={refresh}>
+            A new edition is available — refresh
+          </button>
+        )}
 
         <div className="dc-content" {...swipe}>
           {loading ? (
@@ -186,22 +196,30 @@ export default function App() {
                         : "No saved edition to show offline."}
                   </p>
                 ))}
-              {view === "stocks" && <StocksView edition={current} entries={entries} onOpenDate={openEdition} />}
-              {view === "options" && <OptionsView edition={current} entries={entries} onOpenDate={openEdition} />}
-              {view === "archive" && <ArchiveView entries={entries} onOpen={openEdition} />}
+              {/* Equities carries the options sheet too — Options is no longer its own tab. */}
+              {view === "stocks" && (
+                <>
+                  <StocksView edition={current} entries={entries} onOpenDate={openEdition} />
+                  <OptionsView edition={current} entries={entries} onOpenDate={openEdition} />
+                </>
+              )}
               {/* `unlocked` as well as the view: the effect above redirects a locked reader, but
-                  only after this render, and a frame of the settings panel is still a frame of it. */}
+                  only after this render, and a frame of the settings panel is still a frame of it.
+                  Settings also carries the archive — Archive is no longer its own tab. */}
               {view === "desk" && unlocked && (
-                <DeskView
-                  config={config}
-                  setConfig={setConfig}
-                  saveState={saveState}
-                  onLock={clearToken}
-                  feedback={feedback}
-                  onImport={onImport}
-                  importedCount={importedCount}
-                  onClearImported={clearImported}
-                />
+                <>
+                  <ArchiveView entries={entries} onOpen={openEdition} />
+                  <DeskView
+                    config={config}
+                    setConfig={setConfig}
+                    saveState={saveState}
+                    onLock={clearToken}
+                    feedback={feedback}
+                    onImport={onImport}
+                    importedCount={importedCount}
+                    onClearImported={clearImported}
+                  />
+                </>
               )}
               {view === "movies" && <MoviesView edition={current} entries={entries} onOpenDate={openDate} />}
               {view === "legal" && <DisclaimerView />}

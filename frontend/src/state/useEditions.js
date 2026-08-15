@@ -122,11 +122,45 @@ export function useEditions() {
       });
   }, [targetDate, reloads, importedByDate]);
 
-  // Reconnecting refetches the manifest and the open edition so a cached copy heals to fresh.
+  // Apply a refresh: re-fetch the manifest (and, if the latest moved, the open edition). This is a
+  // data refresh — never a page reload — so scroll position and app state are kept.
+  const refresh = useCallback(() => {
+    setUpdateAvailable(false);
+    setError(null);
+    setReloads((n) => n + 1);
+  }, []);
+
+  // A cheap check — the manifest only — for an edition newer than the one we hold. It raises a
+  // banner rather than yanking the reader mid-read; refresh() (the banner, or the masthead button)
+  // applies it. Fails quietly when offline.
+  const checkForUpdate = useCallback(async () => {
+    try {
+      const list = normalizeIndex(await fetchIndex());
+      const latest = list[0];
+      const known = latestKnownRef.current;
+      const isNew =
+        latest &&
+        (!known ||
+          latest.date > known.date ||
+          (latest.date === known.date && (latest.edition ?? 0) !== (known.edition ?? 0)));
+      if (isNew) setUpdateAvailable(true);
+    } catch {
+      /* offline or transient — the check just no-ops */
+    }
+  }, []);
+
+  // Reconnecting heals a cached copy straight to fresh; returning to the foreground checks cheaply
+  // and raises the banner if a newer edition exists. Neither reloads the page.
   useEffect(() => {
-    if (!prevOnline.current && online) setReloads((n) => n + 1);
+    if (!prevOnline.current && online) refresh();
     prevOnline.current = online;
-  }, [online]);
+  }, [online, refresh]);
+
+  useEffect(() => {
+    const onVisible = () => document.visibilityState === "visible" && checkForUpdate();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [checkForUpdate]);
 
   const importEditions = useCallback((raws) => {
     const eds = raws.map(normalizeEdition).filter(Boolean);
@@ -161,7 +195,9 @@ export function useEditions() {
     error,
     stale,
     online,
+    updateAvailable,
     retry,
+    refresh,
     importEditions,
     clearImported,
     importedCount: imported.length,
