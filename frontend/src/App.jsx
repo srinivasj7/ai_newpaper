@@ -174,7 +174,7 @@ export default function App() {
           ))}
         </nav>
 
-        <ErrorBanner error={error} stale={stale} offline={!online} onRetry={retry} />
+        <ErrorBanner error={error} stale={stale} offline={!online} hasEdition={Boolean(current)} onRetry={retry} />
 
         {updateAvailable && (
           <button type="button" className="dc-update" onClick={refresh}>

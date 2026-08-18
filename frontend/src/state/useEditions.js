@@ -113,6 +113,9 @@ export function useEditions() {
       })
       .catch((err) => {
         if (wanted.current !== targetDate) return;
+        // The attempt failed — clear the de-dupe guard so re-running this effect (e.g. an unrelated
+        // dependency changing identity) tries the network again rather than sitting on the cache.
+        lastFetch.current = { date: null, reloads: -1 };
         const cached = normalizeEdition(loadEdition(targetDate));
         if (cached) {
           setCurrent(cached);

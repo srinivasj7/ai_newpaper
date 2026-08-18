@@ -4,15 +4,14 @@
  *   - a fetch failed while online: the louder "unable to reach the service", with a retry.
  *   - all well: nothing.
  */
-export default function ErrorBanner({ error, stale, offline, onRetry }) {
+export default function ErrorBanner({ error, stale, offline, hasEdition, onRetry }) {
   if (!offline && !error) return null;
 
   if (offline) {
-    const cached = stale || error?.cached;
     return (
       <div className="dc-banner offline" role="status">
         <span>
-          {cached
+          {hasEdition
             ? "You’re offline — showing the last saved edition."
             : "You’re offline. Reconnect to load the paper."}
         </span>

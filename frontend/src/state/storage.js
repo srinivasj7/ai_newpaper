@@ -66,7 +66,16 @@ async function getOrCreateKey() {
 }
 
 // --- AES-GCM, iv prepended, base64 in an envelope ---
-const toB64 = (bytes) => btoa(String.fromCharCode(...bytes));
+// Chunked: String.fromCharCode(...bytes) spreads every byte as an argument and throws RangeError
+// past the engine's arg limit (~64k–125k), which a full edition cache easily exceeds.
+const toB64 = (bytes) => {
+  let binary = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+};
 const fromB64 = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 
 async function encrypt(plaintext) {
@@ -126,6 +135,9 @@ export function initStorage() {
 
       const legacy = [];
       for (const k of keys) {
+        // If the app already wrote this key (the render timeout fired mid-scan), that value is
+        // fresher than what's on disk — keep it rather than overwrite it with the decrypted copy.
+        if (cache.has(k)) continue;
         const raw = localStorage.getItem(k);
         if (raw == null) continue;
         if (cryptoKey && raw.startsWith(ENVELOPE)) {

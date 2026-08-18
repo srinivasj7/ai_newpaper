@@ -9,7 +9,9 @@
 import { K } from "../defaults.js";
 import { load, save } from "./storage.js";
 
-const CAP = 15;
+// The whole cache is persisted as a single encrypted value, so its size is bounded here to stay
+// well under the ~5 MB localStorage origin quota (base64 adds ~33% on top of the edition JSON).
+const CAP = 8;
 
 export function saveEdition(date, edition) {
   if (!date || !edition) return;
