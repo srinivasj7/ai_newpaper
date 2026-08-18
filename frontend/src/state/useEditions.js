@@ -31,6 +31,9 @@ export function useEditions() {
   const prevOnline = useRef(online);
 
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshNote, setRefreshNote] = useState(null); // transient: 'updated' | 'current' | 'offline'
+  const noteTimer = useRef(null);
   // The newest edition we currently hold, read inside callbacks without re-subscribing them.
   const latestKnownRef = useRef(null);
   useEffect(() => {
@@ -122,13 +125,33 @@ export function useEditions() {
       });
   }, [targetDate, reloads, importedByDate]);
 
-  // Apply a refresh: re-fetch the manifest (and, if the latest moved, the open edition). This is a
-  // data refresh — never a page reload — so scroll position and app state are kept.
-  const refresh = useCallback(() => {
-    setUpdateAvailable(false);
-    setError(null);
-    setReloads((n) => n + 1);
+  const flashNote = useCallback((note) => {
+    setRefreshNote(note);
+    if (noteTimer.current) clearTimeout(noteTimer.current);
+    noteTimer.current = setTimeout(() => setRefreshNote(null), 2200);
   }, []);
+
+  // Apply a refresh: re-fetch the manifest. A newer date then advances the open edition through the
+  // edition effect below. A data refresh, never a page reload — scroll and app state are kept — and
+  // it reports the outcome so the ↻ control can show a spinner then "updated" / "up to date".
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    setUpdateAvailable(false);
+    try {
+      const list = normalizeIndex(await fetchIndex());
+      save(K.indexCache, list);
+      const prev = latestKnownRef.current?.date ?? null;
+      setEntries(list);
+      setStale(false);
+      setError(null);
+      const next = list[0]?.date ?? null;
+      flashNote(next && next !== prev ? "updated" : "current");
+    } catch {
+      flashNote("offline");
+    } finally {
+      setRefreshing(false);
+    }
+  }, [flashNote]);
 
   // A cheap check — the manifest only — for an edition newer than the one we hold. It raises a
   // banner rather than yanking the reader mid-read; refresh() (the banner, or the masthead button)
@@ -196,6 +219,8 @@ export function useEditions() {
     stale,
     online,
     updateAvailable,
+    refreshing,
+    refreshNote,
     retry,
     refresh,
     importEditions,

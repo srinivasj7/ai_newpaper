@@ -72,12 +72,20 @@ export default function App() {
     stale,
     online,
     updateAvailable,
+    refreshing,
+    refreshNote,
     retry,
     refresh,
     importEditions,
     clearImported,
     importedCount,
   } = useEditions();
+
+  const REFRESH_NOTE = {
+    updated: "Updated to the latest edition",
+    current: "You’re up to date",
+    offline: "Couldn’t refresh — you appear to be offline",
+  };
 
   const onVote = useCallback((story, choice) => vote(story, choice, currentDate), [vote, currentDate]);
 
@@ -150,6 +158,7 @@ export default function App() {
                 onLockClick={onLockClick}
                 onRefresh={refresh}
                 updateAvailable={updateAvailable}
+                refreshing={refreshing}
               />
             </div>
           </div>
@@ -245,6 +254,12 @@ export default function App() {
       </div>
 
       <BottomNav tabs={tabs} view={view} onSelect={setView} />
+
+      {refreshNote && (
+        <div className="dc-toast" role="status">
+          {REFRESH_NOTE[refreshNote]}
+        </div>
+      )}
 
       <UnlockDialog open={askUnlock} onClose={() => setAskUnlock(false)} onUnlocked={() => setUnlocked(true)} />
     </div>

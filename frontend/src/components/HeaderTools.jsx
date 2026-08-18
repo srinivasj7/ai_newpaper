@@ -50,6 +50,7 @@ export default function HeaderTools({
   onLockClick,
   onRefresh,
   updateAvailable,
+  refreshing,
 }) {
   const stale = editionDate ? daysOld(editionDate) >= STALE_AFTER_DAYS : false;
 
@@ -65,8 +66,9 @@ export default function HeaderTools({
       {onRefresh && (
         <button
           type="button"
-          className={`dc-tool${updateAvailable ? " on" : ""}`}
+          className={`dc-tool${updateAvailable ? " on" : ""}${refreshing ? " spinning" : ""}`}
           onClick={onRefresh}
+          disabled={refreshing}
           title={updateAvailable ? "A new edition is available — refresh" : "Refresh"}
           aria-label={updateAvailable ? "A new edition is available. Refresh." : "Refresh"}
         >
