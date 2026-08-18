@@ -42,7 +42,16 @@ function GitHubIcon() {
  * Deliberately quiet — mono, small, low-contrast. Nothing here is content, and it should never
  * compete with the nameplate directly beneath it.
  */
-export default function HeaderTools({ editionDate, theme, onCycleTheme, unlocked, onLockClick }) {
+export default function HeaderTools({
+  editionDate,
+  theme,
+  onCycleTheme,
+  unlocked,
+  onLockClick,
+  onRefresh,
+  updateAvailable,
+  refreshing,
+}) {
   const stale = editionDate ? daysOld(editionDate) >= STALE_AFTER_DAYS : false;
 
   return (
@@ -52,6 +61,19 @@ export default function HeaderTools({ editionDate, theme, onCycleTheme, unlocked
           <i className="dot" aria-hidden="true" />
           {ageLabel(editionDate)}
         </span>
+      )}
+
+      {onRefresh && (
+        <button
+          type="button"
+          className={`dc-tool${updateAvailable ? " on" : ""}${refreshing ? " spinning" : ""}`}
+          onClick={onRefresh}
+          disabled={refreshing}
+          title={updateAvailable ? "A new edition is available — refresh" : "Refresh"}
+          aria-label={updateAvailable ? "A new edition is available. Refresh." : "Refresh"}
+        >
+          <span aria-hidden="true">↻</span>
+        </button>
       )}
 
       <button

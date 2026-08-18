@@ -10,7 +10,8 @@
  * Responsibilities (thin scope):
  *   - hide the native splash once the app has painted
  *   - open external links in the system browser, not the in-app WebView
- *   - pull-to-refresh (reload the current bundle)
+ *   - keep any reload pinned to the top (scroll restoration off) — the paper refreshes its own
+ *     data in-app via a cheap manifest check (see useEditions), never a full page reload
  *   - check for an over-the-air (OTA) web-bundle update and apply it (with auto-rollback)
  */
 
@@ -30,8 +31,10 @@ export async function initNative() {
   if (!Capacitor.isNativePlatform()) return;
 
   try {
-    await Promise.all([setupSplash(), setupExternalLinks()]);
-    setupPullToRefresh();
+    // A reload should start at the top, not restore the previous scroll offset — otherwise a
+    // refresh or an OTA bundle swap appears to "jump to the bottom" of the page.
+    if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+    await Promise.all([setupSplash(), setupStatusBar(), setupExternalLinks()]);
     // OTA runs last and never blocks startup — a failed check just means "keep the current bundle".
     checkForUpdate();
   } catch (err) {
@@ -66,35 +69,36 @@ async function setupExternalLinks() {
   );
 }
 
-function setupPullToRefresh() {
-  // Minimal overscroll-to-reload: only arms when the page is already scrolled to the very top.
-  // A full reload re-fetches the manifest and re-opens the current edition — the right refresh
-  // for a daily paper. (A styled spinner is a deliberate future enhancement; thin for now.)
-  const THRESHOLD = 70;
-  const scroller = document.scrollingElement || document.documentElement;
-  let startY = 0;
-  let armed = false;
+async function setupStatusBar() {
+  const { StatusBar, Style } = await import("@capacitor/status-bar");
+  const root = document.documentElement;
 
-  addEventListener(
-    "touchstart",
-    (e) => {
-      armed = scroller.scrollTop <= 0 && e.touches.length === 1;
-      startY = armed ? e.touches[0].clientY : 0;
-    },
-    { passive: true },
+  // Android 15+/16 enforce edge-to-edge, so by default the WebView draws behind the status bar and
+  // the masthead's top row is clipped. overlay:false lays the WebView out below the bar. On iOS this
+  // is effectively a no-op — content is already inset past the notch by the safe area.
+  await StatusBar.setOverlaysWebView({ overlay: false }).catch((err) =>
+    console.warn("[native] status bar overlay failed", err),
   );
-  addEventListener(
-    "touchmove",
-    (e) => {
-      if (!armed) return;
-      if (e.touches[0].clientY - startY > THRESHOLD) {
-        armed = false;
-        location.reload();
-      }
-    },
-    { passive: true },
-  );
-  addEventListener("touchend", () => (armed = false), { passive: true });
+
+  const isAndroid = Capacitor.getPlatform() === "android";
+  // Paint the bar to match whatever theme useTheme resolved onto <html data-theme> (only ever
+  // "light" or "dark"), and follow it when the user cycles the theme or the system flips.
+  const apply = async () => {
+    const dark = root.getAttribute("data-theme") === "dark";
+    try {
+      // Style.Dark = light glyphs (for a dark bar); Style.Light = dark glyphs (for a light bar).
+      await StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light });
+      // Bar background is Android-only; iOS has no settable status-bar background.
+      if (isAndroid) await StatusBar.setBackgroundColor({ color: dark ? "#14140F" : "#F6F5F1" });
+    } catch (err) {
+      console.warn("[native] status bar style failed", err);
+    }
+  };
+
+  await apply();
+  // initNative() runs before React's first paint, so data-theme may not be stamped yet; the observer
+  // catches the first stamp and every later theme change.
+  new MutationObserver(apply).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
 }
 
 async function checkForUpdate() {

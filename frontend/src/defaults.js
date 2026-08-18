@@ -30,5 +30,5 @@ export const K = {
   outbox: "dtb-feedback-outbox",
   imported: "dtb-imported-editions",
   indexCache: "dtb-index-cache",
-  editionCache: "dtb-edition-cache",
+  editionsCache: "dtb-editions-cache", // per-date cache: { "YYYY-MM-DD": edition, ... }, LRU-capped
 };

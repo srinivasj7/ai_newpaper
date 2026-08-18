@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import "./styles/theme.css";
+import BottomNav from "./components/BottomNav.jsx";
 import ErrorBanner from "./components/ErrorBanner.jsx";
 import HeaderTools from "./components/HeaderTools.jsx";
 import UnlockDialog from "./components/UnlockDialog.jsx";
@@ -14,6 +15,7 @@ import { clearToken, getToken, onTokenChange } from "./api/token.js";
 import { useConfig } from "./state/useConfig.js";
 import { useEditions } from "./state/useEditions.js";
 import { useFeedback } from "./state/useFeedback.js";
+import { useHorizontalSwipe } from "./state/useHorizontalSwipe.js";
 import { useTheme } from "./state/useTheme.js";
 import { todayShort } from "./format.js";
 
@@ -27,11 +29,11 @@ const count = (n, noun) => `${n} ${n === 1 ? noun : `${noun}s`}`;
 const TABS = [
   ["today", "Front Page"],
   ["stocks", "Equities"],
-  ["options", "Options"],
-  ["archive", "Archive"],
   ["desk", "Settings"],
   ["movies", "Movies"],
 ];
+// Options folds into Equities and the Archive folds into Settings — see the view switch below —
+// to keep the (bottom) rail short. Both still have their own view render, just no rail entry.
 
 /* Settings is the only tab that does nothing without the passphrase — every control in it
    writes. Showing it while locked offers a door that opens onto a wall. It is hidden rather
@@ -42,6 +44,15 @@ const TABS = [
    Lambda refuses an unsigned write regardless of what the browser chooses to render. The
    padlock in the masthead remains the way in, which is why unlocking does not live here. */
 const requiresUnlock = (key) => key === "desk";
+
+/* Move to the adjacent section (in the currently visible rail), clamped at the ends. A view that
+   is off the rail (e.g. the Terms page) has no index, so a swipe there does nothing. */
+const step = (list, cur, delta) => {
+  const order = list.map(([k]) => k);
+  const i = order.indexOf(cur);
+  if (i === -1) return cur;
+  return order[Math.min(order.length - 1, Math.max(0, i + delta))];
+};
 
 export default function App() {
   const [view, setView] = useState("today");
@@ -59,11 +70,22 @@ export default function App() {
     editionLoading,
     error,
     stale,
+    online,
+    updateAvailable,
+    refreshing,
+    refreshNote,
     retry,
+    refresh,
     importEditions,
     clearImported,
     importedCount,
   } = useEditions();
+
+  const REFRESH_NOTE = {
+    updated: "Updated to the latest edition",
+    current: "You’re up to date",
+    offline: "Couldn’t refresh — you appear to be offline",
+  };
 
   const onVote = useCallback((story, choice) => vote(story, choice, currentDate), [vote, currentDate]);
 
@@ -78,6 +100,12 @@ export default function App() {
   }, [unlocked, view]);
 
   const tabs = unlocked ? TABS : TABS.filter(([k]) => !requiresUnlock(k));
+
+  // Swipe left/right moves to the adjacent visible section (respects the locked/unlocked rail).
+  const swipe = useHorizontalSwipe(
+    useCallback(() => setView((v) => step(tabs, v, -1)), [tabs]),
+    useCallback(() => setView((v) => step(tabs, v, 1)), [tabs]),
+  );
 
   // A write came back 401 — the stored secret is gone or was never right. Ask, once.
   useEffect(() => {
@@ -128,6 +156,9 @@ export default function App() {
                 onCycleTheme={cycleTheme}
                 unlocked={unlocked}
                 onLockClick={onLockClick}
+                onRefresh={refresh}
+                updateAvailable={updateAvailable}
+                refreshing={refreshing}
               />
             </div>
           </div>
@@ -143,47 +174,67 @@ export default function App() {
           ))}
         </nav>
 
-        <ErrorBanner error={error} stale={stale} onRetry={retry} />
+        <ErrorBanner error={error} stale={stale} offline={!online} hasEdition={Boolean(current)} onRetry={retry} />
 
-        {loading ? (
-          <p className="dc-empty">Loading…</p>
-        ) : (
-          <>
-            {view === "today" &&
-              (current ? (
-                <EditionView
-                  edition={current}
-                  config={config}
-                  feedback={feedback}
-                  onVote={onVote}
-                  isLatest={!entries.length || current.date === entries[0].date}
-                />
-              ) : (
-                <p className="dc-empty">{editionLoading ? "Loading…" : "No edition has been published yet."}</p>
-              ))}
-            {view === "stocks" && <StocksView edition={current} entries={entries} onOpenDate={openEdition} />}
-            {view === "options" && <OptionsView edition={current} entries={entries} onOpenDate={openEdition} />}
-            {view === "archive" && <ArchiveView entries={entries} onOpen={openEdition} />}
-            {/* `unlocked` as well as the view: the effect above redirects a locked reader, but
-                only after this render, and a frame of the settings panel is still a frame of it. */}
-            {view === "desk" && unlocked && (
-              <DeskView
-                config={config}
-                setConfig={setConfig}
-                saveState={saveState}
-                onLock={clearToken}
-                feedback={feedback}
-                onImport={onImport}
-                importedCount={importedCount}
-                onClearImported={clearImported}
-              />
-            )}
-            {view === "movies" && (
-              <MoviesView edition={current} entries={entries} onOpenDate={openDate} />
-            )}
-            {view === "legal" && <DisclaimerView />}
-          </>
+        {updateAvailable && (
+          <button type="button" className="dc-update" onClick={refresh}>
+            A new edition is available — refresh
+          </button>
         )}
+
+        <div className="dc-content" {...swipe}>
+          {loading ? (
+            <p className="dc-empty">Loading…</p>
+          ) : (
+            <>
+              {view === "today" &&
+                (current ? (
+                  <EditionView
+                    edition={current}
+                    config={config}
+                    feedback={feedback}
+                    onVote={onVote}
+                    isLatest={!entries.length || current.date === entries[0].date}
+                  />
+                ) : (
+                  <p className="dc-empty">
+                    {editionLoading
+                      ? "Loading…"
+                      : online
+                        ? "No edition has been published yet."
+                        : "No saved edition to show offline."}
+                  </p>
+                ))}
+              {/* Equities carries the options sheet too — Options is no longer its own tab. */}
+              {view === "stocks" && (
+                <>
+                  <StocksView edition={current} entries={entries} onOpenDate={openEdition} />
+                  <OptionsView edition={current} entries={entries} onOpenDate={openEdition} />
+                </>
+              )}
+              {/* `unlocked` as well as the view: the effect above redirects a locked reader, but
+                  only after this render, and a frame of the settings panel is still a frame of it.
+                  Settings also carries the archive — Archive is no longer its own tab. */}
+              {view === "desk" && unlocked && (
+                <>
+                  <ArchiveView entries={entries} onOpen={openEdition} />
+                  <DeskView
+                    config={config}
+                    setConfig={setConfig}
+                    saveState={saveState}
+                    onLock={clearToken}
+                    feedback={feedback}
+                    onImport={onImport}
+                    importedCount={importedCount}
+                    onClearImported={clearImported}
+                  />
+                </>
+              )}
+              {view === "movies" && <MoviesView edition={current} entries={entries} onOpenDate={openDate} />}
+              {view === "legal" && <DisclaimerView />}
+            </>
+          )}
+        </div>
 
         <footer className="dc-foot">
           <div>
@@ -201,6 +252,14 @@ export default function App() {
           </div>
         </footer>
       </div>
+
+      <BottomNav tabs={tabs} view={view} onSelect={setView} />
+
+      {refreshNote && (
+        <div className="dc-toast" role="status">
+          {REFRESH_NOTE[refreshNote]}
+        </div>
+      )}
 
       <UnlockDialog open={askUnlock} onClose={() => setAskUnlock(false)} onUnlocked={() => setUnlocked(true)} />
     </div>

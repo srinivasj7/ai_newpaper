@@ -88,7 +88,11 @@ html,body{background:var(--paper);}
 .dc-modal-foot{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
 
 /* Section nav */
-.dc-nav{display:flex; justify-content:center; gap:0; border-bottom:1px solid var(--rule-dark);
+/* `safe center` — not plain `center`: on a phone the six sections overflow this scroll container,
+   and plain centering pushes the first (active) tab off the left edge into an area that cannot be
+   scrolled back to. `safe` keeps the centred look while there is room and falls back to start-
+   alignment when it overflows, so nothing is clipped and the full rail scrolls. */
+.dc-nav{display:flex; justify-content:safe center; gap:0; border-bottom:1px solid var(--rule-dark);
   overflow-x:auto; -webkit-overflow-scrolling:touch;}
 .dc-nav button{appearance:none; background:none; border:none; cursor:pointer;
   font-family:var(--label); font-size:13px; letter-spacing:.18em; text-transform:uppercase;
@@ -96,6 +100,29 @@ html,body{background:var(--paper);}
   white-space:nowrap;}
 .dc-nav button.on{color:var(--ink); border-bottom-color:var(--wire); font-weight:700;}
 .dc-nav button:focus-visible{outline:2px solid var(--wire); outline-offset:-2px;}
+
+/* Section rail as a fixed bottom tab bar on phones. On desktop it is hidden and the top .dc-nav
+   shows instead; on mobile the top rail hides and this takes over — App renders both, CSS chooses.
+   Sits above the home indicator via the safe-area inset; content gets matching bottom padding so
+   the footer clears it. */
+.dc-bottomnav{display:none;}
+@media(max-width:760px){
+  .dc-nav{display:none;}
+  .dc-bottomnav{
+    display:flex; position:fixed; left:0; right:0; bottom:0; z-index:40;
+    background:var(--paper); border-top:1px solid var(--rule-dark);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .dc-shell{ padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+}
+.dc-bottomnav button{appearance:none; background:none; border:none; cursor:pointer;
+  flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:3px;
+  padding:8px 3px 7px; color:var(--ink-soft); font-family:var(--label); font-size:10.5px;
+  letter-spacing:.03em; text-transform:uppercase;}
+.dc-bottomnav button .ico{display:inline-flex; line-height:0;}
+.dc-bottomnav button .lbl{max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.dc-bottomnav button.on{color:var(--wire);}
+.dc-bottomnav button:focus-visible{outline:2px solid var(--wire); outline-offset:-3px;}
 
 /* On a phone the rail matters more than the wall-clock date, which the freshness pill implies. */
 @media(max-width:560px){ .dc-mast-date{display:none;} }
@@ -237,6 +264,27 @@ pre.dc-export{font-family:var(--mono); font-size:11.5px; background:var(--field)
 .dc-banner .retry{appearance:none; background:none; border:none; cursor:pointer; padding:0;
   font-family:var(--label); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
   color:var(--down); border-bottom:1px solid currentColor;}
+/* Offline is expected, not a failure — mute it: ink-soft on the neutral tint, no alarm red. */
+.dc-banner.offline{border-color:var(--rule-dark); color:var(--ink-soft);}
+
+/* "New edition available" — a quiet, tappable prompt. The paper keeps showing the current edition
+   until it is tapped, so a reader is never yanked mid-story. */
+.dc-update{display:block; width:100%; appearance:none; cursor:pointer; margin:16px 0 0;
+  border:1px solid var(--wire); border-left-width:3px; background:var(--tint); color:var(--wire);
+  font-family:var(--label); font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+  padding:10px 12px; text-align:left;}
+.dc-update:focus-visible{outline:2px solid var(--wire); outline-offset:1px;}
+
+/* Refresh feedback: the ↻ tool spins while fetching, then a brief toast reports the outcome. */
+.dc-tool.spinning span{display:inline-block; animation:dcspin .8s linear infinite;}
+.dc-tool:disabled{opacity:.55; cursor:default;}
+@keyframes dcspin{to{transform:rotate(360deg);}}
+.dc-toast{position:fixed; left:50%; bottom:24px; z-index:45; transform:translateX(-50%);
+  background:var(--ink); color:var(--paper); font-family:var(--mono); font-size:12px;
+  padding:9px 14px; border-radius:4px; box-shadow:0 6px 24px rgba(0,0,0,.28); text-align:center;
+  max-width:calc(100% - 32px); pointer-events:none; animation:dctoast .25s ease both;}
+@media(max-width:760px){ .dc-toast{bottom:calc(84px + env(safe-area-inset-bottom));} }
+@keyframes dctoast{from{opacity:0; transform:translate(-50%,8px);} to{opacity:1; transform:translate(-50%,0);}}
 
 /* Market pages (stocks / options) */
 .dc-mkt-head{display:flex; justify-content:space-between; align-items:baseline; margin:24px 0 4px; flex-wrap:wrap; gap:6px;}
