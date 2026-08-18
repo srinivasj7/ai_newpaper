@@ -12,7 +12,7 @@
     "@capacitor/browser": "^8.0.4",
     "@capacitor/core": "^8.5.0",
     "@capacitor/splash-screen": "^8.0.2",
-    "@capgo/capacitor-updater": "^8.51.3",
+    "@capgo/capacitor-updater": "^8.51.6",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
