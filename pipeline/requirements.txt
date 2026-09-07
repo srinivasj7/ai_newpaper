@@ -1,10 +1,10 @@
 # Pinned to majors; the pipeline is rebuilt rarely and runs unattended.
-pydantic>=2.13.4,<3
+pydantic>=2.13.5,<3
 feedparser>=6.0.14,<7
 httpx>=0.28.1,<1
-boto3>=1.43.71,<2
+boto3>=1.43.88,<2
 PyYAML>=6.0.3,<7
-python-dotenv>=1.2.2,<2
+python-dotenv>=1.2.3,<2
 # zoneinfo is stdlib, but the IANA database it reads is not in python:*-slim. Without this the
 # edition would be dated in UTC — see EDITION_TZ in settings.py.
 tzdata>=2026.3
